@@ -97,6 +97,7 @@ tests/
 - Run pytest from repo root: `pytest tests/...` (config in `pyproject.toml`).
 - Python 3.12 from the container's pyenv default.
 - No emojis in code or commits.
+- **Imports** : stdlib / blank line / third-party / blank line / local — ruff (rule I001) enforces this. Code snippets in this plan may not always show the blank lines; **always run `ruff check --fix <touched_files>` before committing**. Task 21's acceptance includes `ruff check src/ tests/` passing — fixing as you go avoids late cleanup.
 
 ---
 
