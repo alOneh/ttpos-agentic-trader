@@ -51,3 +51,28 @@ def test_confluence_zone_membership():
     assert z.contains(4500.2)
     assert not z.contains(4498.0)
     assert z.has_tf("D") and z.has_tf("W")
+
+
+def test_market_snapshot_holds_pivots_per_tf(utc_now):
+    from tradingview_api.models.ohlcv import MarketInfo, Period
+
+    from agentic_trader.domain.snapshot import MarketSnapshot
+
+    bar = Period(time=int(utc_now.timestamp()), open=1.0, high=2.0, low=0.5, close=1.5, volume=10.0)
+    pivots = {}
+    for tf in ("4H", "D", "W", "M"):
+        pivots[tf] = PivotSet(
+            timeframe=tf, symbol="VANTAGE:XAUUSD",
+            session_end=utc_now,
+            cpr_width=1.0, cpr_width_avg_20=1.2, levels=[],
+        )
+    snap = MarketSnapshot(
+        symbol="VANTAGE:XAUUSD",
+        cycle_time=utc_now,
+        m5_bars=[bar],
+        pivots=pivots,
+        atr_m5=0.3, atr_d=15.0,
+        market_info=MarketInfo(name="XAUUSD", pricescale=100.0),
+    )
+    assert set(snap.pivots.keys()) == {"4H", "D", "W", "M"}
+    assert snap.atr_d == 15.0
