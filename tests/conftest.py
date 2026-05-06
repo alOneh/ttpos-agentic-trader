@@ -1,6 +1,7 @@
 import pytest
 
+
 @pytest.fixture
 def utc_now():
-    from datetime import datetime, UTC
+    from datetime import UTC, datetime
     return datetime.now(UTC)
