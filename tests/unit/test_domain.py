@@ -76,3 +76,56 @@ def test_market_snapshot_holds_pivots_per_tf(utc_now):
     )
     assert set(snap.pivots.keys()) == {"4H", "D", "W", "M"}
     assert snap.atr_d == 15.0
+
+
+def test_signal_r_multiples(utc_now):
+    from agentic_trader.domain.signal import Signal
+    pivot = PivotLevel(tag="PDL", timeframe="D", value=4500.0,
+                        dilated_low=4498.5, dilated_high=4501.5)
+    s = Signal(
+        id="abc",
+        symbol="VANTAGE:XAUUSD",
+        strategy="S1", direction="LONG", mode="intraday",
+        trigger_pivot=pivot,
+        entry=4502.0, stop_loss=4495.0,
+        targets=[(4520.0, "Daily P"), (4540.0, "Daily R1")],
+        tags=["confluence"],
+        context_h4=None,
+        cycle_time=utc_now,
+    )
+    # risk = 7.0, reward1 = 18.0 → r1 ≈ 2.57
+    assert round(s.r_multiples[0], 2) == 2.57
+    assert round(s.r_multiples[1], 2) == 5.43
+
+
+def test_pending_break_expiration(utc_now):
+    from datetime import timedelta
+
+    from agentic_trader.domain.state import AgentState, PendingBreak
+    pb = PendingBreak(
+        symbol="VANTAGE:XAUUSD", pivot_tag="P", pivot_tf="D",
+        pivot_value=4500.0, direction="LONG",
+        break_price=4505.0, break_time=utc_now,
+        expires_at=utc_now + timedelta(hours=2),
+    )
+    state = AgentState(pending_breaks=[pb])
+    assert len(state.pending_breaks) == 1
+
+    expired = state.expire(utc_now + timedelta(hours=3))
+    assert len(expired.pending_breaks) == 0
+
+
+def test_agent_state_find_break(utc_now):
+    from datetime import timedelta
+
+    from agentic_trader.domain.state import AgentState, PendingBreak
+    pb = PendingBreak(
+        symbol="VANTAGE:XAUUSD", pivot_tag="P", pivot_tf="D",
+        pivot_value=4500.0, direction="LONG",
+        break_price=4505.0, break_time=utc_now,
+        expires_at=utc_now + timedelta(hours=2),
+    )
+    state = AgentState(pending_breaks=[pb])
+    found = state.find_break("VANTAGE:XAUUSD", "P", "D")
+    assert found is not None and found.direction == "LONG"
+    assert state.find_break("VANTAGE:XAUUSD", "R1", "D") is None
