@@ -1,0 +1,19 @@
+defaults:
+  modes: [intraday, swing]
+  strategies: [S1, S2, S3, S4, S5, S6]
+  atr_dilation_mult: 0.15
+  atr_dilation_cap_d_mult: 0.50
+  confluence_threshold_atr_d: 0.30
+  narrow_cpr_threshold: 0.50
+  break_body_min_atr_m5: 0.50
+  retest_window_m5_bars: 24
+  candle_wick_min_ratio: 0.60
+  candle_doji_body_max: 0.10
+
+watchlist:
+  - symbol: VANTAGE:XAUUSD
+  - symbol: VANTAGE:BTCUSD
+  - symbol: VANTAGE:DJ30
+  - symbol: VANTAGE:NAS100
+  - symbol: VANTAGE:GBPUSD
+  - symbol: VANTAGE:EURUSD
