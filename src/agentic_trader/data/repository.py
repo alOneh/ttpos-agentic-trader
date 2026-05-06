@@ -188,3 +188,23 @@ class Repository:
             }
             for r in rows
         ]
+
+    # ---- pivots_cache (raw) ----
+
+    async def get_pivots_raw(self, symbol: str, timeframe: str) -> tuple[int, str] | None:
+        assert self._db is not None
+        cur = await self._db.execute(
+            "SELECT session_end, pivot_set_json FROM pivots_cache WHERE symbol=? AND timeframe=?",
+            (symbol, timeframe),
+        )
+        row = await cur.fetchone()
+        return (row[0], row[1]) if row else None
+
+    async def set_pivots_raw(self, symbol: str, timeframe: str, session_end: int, payload: str) -> None:
+        assert self._db is not None
+        await self._db.execute(
+            "INSERT OR REPLACE INTO pivots_cache(symbol,timeframe,session_end,pivot_set_json) "
+            "VALUES (?,?,?,?)",
+            (symbol, timeframe, session_end, payload),
+        )
+        await self._db.commit()
