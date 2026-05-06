@@ -208,3 +208,41 @@ class Repository:
             (symbol, timeframe, session_end, payload),
         )
         await self._db.commit()
+
+    # ---- notif_log ----
+
+    async def record_notif(
+        self,
+        *,
+        signal_id: str,
+        status: str,
+        sent_at: datetime,
+        error: str | None = None,
+    ) -> None:
+        """Insert or replace a notif_log row. Status is one of:
+        'sent', 'failed', 'suppressed_by_priority', 'suppressed_by_window'.
+        """
+        assert self._db is not None
+        await self._db.execute(
+            "INSERT OR REPLACE INTO notif_log(signal_id, sent_at, status, error) "
+            "VALUES (?, ?, ?, ?)",
+            (signal_id, int(sent_at.timestamp()), status, error),
+        )
+        await self._db.commit()
+
+    async def recent_notifs(self, *, window_min: int, now: datetime) -> list[Signal]:
+        """Return Signal objects that were successfully sent within the last `window_min`
+        minutes (status = 'sent'). Suppressed and failed signals are excluded.
+        """
+        assert self._db is not None
+        cutoff = int(now.timestamp()) - window_min * 60
+        cur = await self._db.execute(
+            "SELECT s.payload_json "
+            "FROM signals_log s "
+            "JOIN notif_log n ON n.signal_id = s.id "
+            "WHERE n.status = 'sent' AND n.sent_at >= ? "
+            "ORDER BY n.sent_at DESC",
+            (cutoff,),
+        )
+        rows = await cur.fetchall()
+        return [Signal.model_validate_json(r[0]) for r in rows]

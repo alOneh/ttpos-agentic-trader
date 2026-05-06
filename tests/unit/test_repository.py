@@ -134,3 +134,42 @@ async def test_record_cycle_health(repo, utc_now):
     assert len(rows) == 1
     assert rows[0]["duration_ms"] == 1234
     assert rows[0]["signals_emitted"] == 3
+
+
+async def test_record_notif_sent(repo, utc_now):
+    s = _signal("notif-a", utc_now)
+    await repo.save_signals([s])
+    await repo.record_notif(signal_id="notif-a", status="sent", sent_at=utc_now)
+    rows = await repo.recent_notifs(window_min=60, now=utc_now)
+    ids = [sig.id for sig in rows]
+    assert "notif-a" in ids
+
+
+async def test_record_notif_suppressed_not_returned_by_recent_notifs(repo, utc_now):
+    s = _signal("notif-b", utc_now)
+    await repo.save_signals([s])
+    await repo.record_notif(signal_id="notif-b", status="suppressed_by_priority", sent_at=utc_now)
+    rows = await repo.recent_notifs(window_min=60, now=utc_now)
+    assert all(sig.id != "notif-b" for sig in rows)
+
+
+async def test_recent_notifs_excludes_outside_window(repo, utc_now):
+    from datetime import timedelta
+    s = _signal("notif-c", utc_now)
+    await repo.save_signals([s])
+    # Send 90 minutes ago, window is 60
+    await repo.record_notif(signal_id="notif-c", status="sent",
+                             sent_at=utc_now - timedelta(minutes=90))
+    rows = await repo.recent_notifs(window_min=60, now=utc_now)
+    assert all(sig.id != "notif-c" for sig in rows)
+
+
+async def test_record_notif_idempotent(repo, utc_now):
+    s = _signal("notif-d", utc_now)
+    await repo.save_signals([s])
+    await repo.record_notif(signal_id="notif-d", status="sent", sent_at=utc_now)
+    await repo.record_notif(signal_id="notif-d", status="sent", sent_at=utc_now)
+    # No exception; status counted once
+    rows = await repo.recent_notifs(window_min=60, now=utc_now)
+    sent_count = sum(1 for sig in rows if sig.id == "notif-d")
+    assert sent_count == 1
