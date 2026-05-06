@@ -515,7 +515,9 @@ async def run_cycle(deps: Deps) -> CycleReport:
                 snap.atr_m5,
             )
         )
-    state = state.merge(new_breaks).expire(cycle_t)
+    # Order matters: expire FIRST so a fresh re-break of a just-expired
+    # PendingBreak isn't dropped by merge's dedupe key set.
+    state = state.expire(cycle_t).merge(new_breaks)
 
     # 6) Run strategies
     signals: list[Signal] = []
