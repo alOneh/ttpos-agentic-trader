@@ -1,6 +1,8 @@
 import logging
 import sys
+
 import structlog
+
 
 def configure_logging(level: str = "INFO") -> None:
     """Configure structlog for JSON-line output to stdout."""
