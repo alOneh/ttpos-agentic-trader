@@ -6,8 +6,9 @@ Multi-timeframe pivot scanner that detects trading setups on M5 and notifies via
 
 **Plan 1 (Foundation + Data layer) — implemented.**
 **Plan 2 (Strategies S1-S6) — implemented.**
+**Plan 3 (Live MVP + Telegram) — implemented.**
 
-Plans 3 (Live MVP + Telegram), 4 (Backtest V2), 5 (Deployment) — pending.
+Plans 4 (Backtest V2), 5 (Deployment) — pending.
 
 ## Quick start (Plan 1 demo)
 
@@ -41,6 +42,18 @@ Six pluggable detection units in `src/agentic_trader/strategies/`:
 | S6 | `s6_sweet_spot.py` | S1 Daily on PDH/PDL/R1/S1 + narrow CPR Daily |
 
 Each strategy is a pure `detect(snapshot, state) -> list[Signal]` — fully unit-tested with synthetic snapshots, replayable in walk-forward backtests (Plan 4) and consumable by the live cycle (Plan 3).
+
+## Live mode (Plan 3)
+
+```bash
+cp .env.example .env
+# fill in TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
+python -m agentic_trader.live.main
+```
+
+Runs continuously: every 5 minutes (UTC `:00:02 / :05:02 / …`) it fetches the watchlist, computes pivots, runs all enabled strategies, persists signals to SQLite, applies the priority + temporal dedup, and sends survivors to Telegram. SIGINT/SIGTERM trigger a graceful shutdown.
+
+Healthcheck (for Docker): `python -m agentic_trader.observability.healthcheck` exits 0 iff the last cycle is < 10 minutes old.
 
 ## Project structure
 
