@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
 from agentic_trader.data.repository import Repository
 from agentic_trader.domain.pivots import PivotLevel
 from agentic_trader.domain.signal import Signal
+from agentic_trader.domain.state import AgentState, PendingBreak
 
 
 @pytest.fixture
@@ -46,3 +47,58 @@ async def test_save_signals_idempotent(repo, utc_now):
     await repo.save_signals([s])  # same id → no duplicate
     rows = await repo.load_signals_since(utc_now)
     assert len(rows) == 1
+
+
+async def test_save_and_load_state(repo, utc_now):
+    pb = PendingBreak(
+        symbol="VANTAGE:XAUUSD", pivot_tag="P", pivot_tf="D",
+        pivot_value=4500.0, direction="LONG",
+        break_price=4505.0, break_time=utc_now,
+        expires_at=utc_now + timedelta(hours=2),
+    )
+    state = AgentState(pending_breaks=[pb])
+    await repo.save_state(state)
+
+    loaded = await repo.load_state(now=utc_now)
+    assert len(loaded.pending_breaks) == 1
+    assert loaded.pending_breaks[0].direction == "LONG"
+
+
+async def test_load_state_filters_expired(repo, utc_now):
+    pb_old = PendingBreak(
+        symbol="VANTAGE:XAUUSD", pivot_tag="P", pivot_tf="D",
+        pivot_value=4500.0, direction="LONG",
+        break_price=4505.0, break_time=utc_now - timedelta(hours=4),
+        expires_at=utc_now - timedelta(hours=2),
+    )
+    pb_fresh = PendingBreak(
+        symbol="VANTAGE:XAUUSD", pivot_tag="R1", pivot_tf="D",
+        pivot_value=4520.0, direction="SHORT",
+        break_price=4515.0, break_time=utc_now,
+        expires_at=utc_now + timedelta(hours=1),
+    )
+    await repo.save_state(AgentState(pending_breaks=[pb_old, pb_fresh]))
+
+    loaded = await repo.load_state(now=utc_now)
+    assert len(loaded.pending_breaks) == 1
+    assert loaded.pending_breaks[0].pivot_tag == "R1"
+
+
+async def test_save_state_replaces_existing(repo, utc_now):
+    pb1 = PendingBreak(
+        symbol="VANTAGE:XAUUSD", pivot_tag="P", pivot_tf="D",
+        pivot_value=4500.0, direction="LONG",
+        break_price=4505.0, break_time=utc_now,
+        expires_at=utc_now + timedelta(hours=2),
+    )
+    pb2 = PendingBreak(
+        symbol="VANTAGE:XAUUSD", pivot_tag="R1", pivot_tf="D",
+        pivot_value=4520.0, direction="SHORT",
+        break_price=4515.0, break_time=utc_now,
+        expires_at=utc_now + timedelta(hours=1),
+    )
+    await repo.save_state(AgentState(pending_breaks=[pb1]))
+    await repo.save_state(AgentState(pending_breaks=[pb2]))
+    loaded = await repo.load_state(now=utc_now)
+    assert len(loaded.pending_breaks) == 1
+    assert loaded.pending_breaks[0].pivot_tag == "R1"
