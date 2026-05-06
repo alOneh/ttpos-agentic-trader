@@ -1077,7 +1077,7 @@ def dominant_wick(bar: Period, side: Side, ratio: float = 2.0) -> bool:
 - [ ] **Step 4: Run, expect PASS**
 
 Run: `pytest tests/unit/test_candles.py -v`
-Expected: 9 tests pass.
+Expected: 8 tests pass.
 
 - [ ] **Step 5: Commit**
 

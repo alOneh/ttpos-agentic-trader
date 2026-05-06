@@ -56,10 +56,6 @@ def _is_short_rejection(bars: list[Period]) -> bool:
         return True
     if is_doji(cur) and dominant_wick(cur, side="upper"):
         return True
-    # Shooting-star body: bearish bar closing in the lower third of its range
-    rng = cur.high - cur.low
-    if rng > 0 and cur.close < cur.open and cur.close <= cur.low + rng / 3.0:
-        return True
     return False
 
 

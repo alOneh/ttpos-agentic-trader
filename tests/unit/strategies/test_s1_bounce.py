@@ -86,8 +86,9 @@ def test_s1_short_rejection_on_daily_r1(base_time, session_ends):
     bars = [
         bar(t=base_time - timedelta(minutes=10), o=104.0, h=104.5, lo=103.5, c=104.0),
         bar(t=base_time - timedelta(minutes=5),  o=104.0, h=105.0, lo=103.5, c=104.5),
-        # Current: high=110.4 in R1 zone [109.5, 110.5], close=107.5 (lower third)
-        bar(t=base_time, o=109.0, h=110.4, lo=107.0, c=107.5),
+        # Current: shooting star — small body 0.5, upper wick 2.4 → ratio 0.71 ≥ 0.6
+        # high=110.4 in R1 zone [109.5, 110.5], close=107.5 in lower third of range
+        bar(t=base_time, o=108.0, h=110.4, lo=107.0, c=107.5),
     ]
 
     snap = make_snapshot(
