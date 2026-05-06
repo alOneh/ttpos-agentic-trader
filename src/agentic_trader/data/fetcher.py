@@ -41,6 +41,17 @@ class TVFetcher:
     async def fetch_m5(self, symbol: str, *, n_bars: int = 50) -> OHLCVResult:
         return await self._fetch(symbol=symbol, timeframe="5", n_bars=n_bars, client=self._client)
 
+    async def fetch_all_m5(
+        self,
+        symbols: list[str],
+        *,
+        n_bars: int = 50,
+    ) -> dict[str, OHLCVResult | Exception]:
+        import asyncio
+        coros = [self.fetch_m5(s, n_bars=n_bars) for s in symbols]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+        return dict(zip(symbols, results, strict=True))
+
     async def fetch_for_pivot_tf(self, symbol: str, tf: TF, *, n_bars: int = 30) -> OHLCVResult:
         return await self._fetch(
             symbol=symbol, timeframe=_TV_TIMEFRAME[tf], n_bars=n_bars, client=self._client

@@ -105,3 +105,30 @@ async def test_get_pivots_session_end_is_next_bar_open(tmp_path):
     ps = await f.get_pivots("VANTAGE:XAUUSD", "D", cache=cache, atr_d=20.0, now=now)
     assert ps.session_end == datetime.fromtimestamp(base + 86400 * 22, tz=UTC)
     await repo.close()
+
+
+async def test_fetch_all_m5_in_parallel():
+    # Verify all symbols' M5 fetches are awaited via the same mock
+    fake = AsyncMock(
+        side_effect=lambda *, symbol, timeframe, n_bars, client: _fake_ohlcv_result(symbol, timeframe, n_bars)
+    )
+    f = TVFetcher(client=None, fetch_ohlcv_fn=fake)
+    results = await f.fetch_all_m5(
+        ["VANTAGE:XAUUSD", "VANTAGE:BTCUSD", "VANTAGE:EURUSD"],
+        n_bars=50,
+    )
+    assert set(results.keys()) == {"VANTAGE:XAUUSD", "VANTAGE:BTCUSD", "VANTAGE:EURUSD"}
+    assert all(len(r.periods) == 50 for r in results.values() if not isinstance(r, Exception))
+    assert fake.await_count == 3
+
+
+async def test_fetch_all_m5_returns_exception_per_symbol_on_failure():
+    def _maybe_fail(*, symbol, timeframe, n_bars, client):
+        if symbol == "BAD":
+            raise RuntimeError("boom")
+        return _fake_ohlcv_result(symbol, timeframe, n_bars)
+
+    f = TVFetcher(client=None, fetch_ohlcv_fn=AsyncMock(side_effect=_maybe_fail))
+    results = await f.fetch_all_m5(["VANTAGE:XAUUSD", "BAD"], n_bars=50)
+    assert isinstance(results["BAD"], Exception)
+    assert not isinstance(results["VANTAGE:XAUUSD"], Exception)
