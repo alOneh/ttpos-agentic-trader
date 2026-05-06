@@ -17,7 +17,7 @@ class PivotsCache:
         if raw is None:
             return None
         session_end_ts, payload = raw
-        if int(now.timestamp()) >= session_end_ts:
+        if int(now.timestamp()) > session_end_ts:
             return None
         return PivotSet.model_validate_json(payload)
 
