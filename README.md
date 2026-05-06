@@ -5,8 +5,9 @@ Multi-timeframe pivot scanner that detects trading setups on M5 and notifies via
 ## Status
 
 **Plan 1 (Foundation + Data layer) — implemented.**
+**Plan 2 (Strategies S1-S6) — implemented.**
 
-Plans 2 (Strategies), 3 (Live MVP + Telegram), 4 (Backtest V2), 5 (Deployment) — pending.
+Plans 3 (Live MVP + Telegram), 4 (Backtest V2), 5 (Deployment) — pending.
 
 ## Quick start (Plan 1 demo)
 
@@ -25,6 +26,21 @@ for 4H/D/W/M timeframes per symbol via TradingView, persists to SQLite at
 ```bash
 pytest
 ```
+
+## Strategies (Plan 2)
+
+Six pluggable detection units in `src/agentic_trader/strategies/`:
+
+| ID | File | Trigger |
+|---|---|---|
+| S1 | `s1_bounce.py` | Wick + close back on PDL/S1 (LONG) or PDH/R1 (SHORT) |
+| S2 | `s2_breakout.py` | Strong M5 close beyond Daily P |
+| S3 | `s3_break_retest.py` | Retest of a previously broken pivot (uses `PendingBreak` state) |
+| S4 | `s4_sweep.py` | Wick beyond dilated zone + close inside |
+| S5 | `s5_hot_zone.py` | S1 trigger filtered by multi-pivot confluence |
+| S6 | `s6_sweet_spot.py` | S1 Daily on PDH/PDL/R1/S1 + narrow CPR Daily |
+
+Each strategy is a pure `detect(snapshot, state) -> list[Signal]` — fully unit-tested with synthetic snapshots, replayable in walk-forward backtests (Plan 4) and consumable by the live cycle (Plan 3).
 
 ## Project structure
 
