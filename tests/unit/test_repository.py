@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 import pytest
+from tradingview_api.models.ohlcv import Period
 
 from agentic_trader.data.repository import Repository
 from agentic_trader.domain.pivots import PivotLevel
@@ -102,3 +103,34 @@ async def test_save_state_replaces_existing(repo, utc_now):
     loaded = await repo.load_state(now=utc_now)
     assert len(loaded.pending_breaks) == 1
     assert loaded.pending_breaks[0].pivot_tag == "R1"
+
+
+async def test_ohlcv_cache_round_trip(repo):
+    bars = [
+        Period(time=1700000000 + 300 * i, open=1.0, high=2.0, low=0.5, close=1.5, volume=10.0)
+        for i in range(5)
+    ]
+    await repo.save_ohlcv("VANTAGE:XAUUSD", "5", bars)
+    out = await repo.load_ohlcv("VANTAGE:XAUUSD", "5", from_ts=1700000000, to_ts=1700000000 + 300 * 5)
+    assert len(out) == 5
+    assert [p.time for p in out] == [1700000000 + 300 * i for i in range(5)]
+
+
+async def test_ohlcv_cache_idempotent(repo):
+    bars = [Period(time=1700000000, open=1.0, high=2.0, low=0.5, close=1.5, volume=10.0)]
+    await repo.save_ohlcv("VANTAGE:XAUUSD", "5", bars)
+    await repo.save_ohlcv("VANTAGE:XAUUSD", "5", bars)  # same key → upserted
+    out = await repo.load_ohlcv("VANTAGE:XAUUSD", "5", from_ts=0, to_ts=1700000001)
+    assert len(out) == 1
+
+
+async def test_record_cycle_health(repo, utc_now):
+    await repo.record_cycle_health(
+        cycle_time=utc_now, duration_ms=1234,
+        symbols_ok=6, symbols_failed=0,
+        signals_emitted=3, signals_notified=2,
+    )
+    rows = await repo.recent_cycle_health(limit=1)
+    assert len(rows) == 1
+    assert rows[0]["duration_ms"] == 1234
+    assert rows[0]["signals_emitted"] == 3

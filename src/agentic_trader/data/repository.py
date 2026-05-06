@@ -107,3 +107,84 @@ class Repository:
             for r in rows
         ]
         return AgentState(pending_breaks=breaks)
+
+    # ---- ohlcv_cache ----
+
+    async def save_ohlcv(self, symbol: str, timeframe: str, bars: list) -> int:
+        if not bars:
+            return 0
+        assert self._db is not None
+        rows = [
+            (symbol, timeframe, int(b.time), b.open, b.high, b.low, b.close, b.volume)
+            for b in bars
+        ]
+        await self._db.executemany(
+            "INSERT OR REPLACE INTO ohlcv_cache(symbol,timeframe,bar_time,open,high,low,close,volume) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            rows,
+        )
+        await self._db.commit()
+        return len(rows)
+
+    async def load_ohlcv(self, symbol: str, timeframe: str, *, from_ts: int, to_ts: int) -> list:
+        from tradingview_api.models.ohlcv import Period
+
+        assert self._db is not None
+        cur = await self._db.execute(
+            "SELECT bar_time,open,high,low,close,volume FROM ohlcv_cache "
+            "WHERE symbol=? AND timeframe=? AND bar_time>=? AND bar_time<? ORDER BY bar_time",
+            (symbol, timeframe, from_ts, to_ts),
+        )
+        rows = await cur.fetchall()
+        return [
+            Period(time=r[0], open=r[1], high=r[2], low=r[3], close=r[4], volume=r[5])
+            for r in rows
+        ]
+
+    # ---- cycle_health ----
+
+    async def record_cycle_health(
+        self,
+        *,
+        cycle_time: datetime,
+        duration_ms: int,
+        symbols_ok: int,
+        symbols_failed: int,
+        signals_emitted: int,
+        signals_notified: int,
+    ) -> None:
+        assert self._db is not None
+        await self._db.execute(
+            "INSERT OR REPLACE INTO cycle_health"
+            "(cycle_time,duration_ms,symbols_ok,symbols_failed,signals_emitted,signals_notified) "
+            "VALUES (?,?,?,?,?,?)",
+            (
+                int(cycle_time.timestamp()),
+                duration_ms,
+                symbols_ok,
+                symbols_failed,
+                signals_emitted,
+                signals_notified,
+            ),
+        )
+        await self._db.commit()
+
+    async def recent_cycle_health(self, *, limit: int = 10) -> list[dict]:
+        assert self._db is not None
+        cur = await self._db.execute(
+            "SELECT cycle_time,duration_ms,symbols_ok,symbols_failed,signals_emitted,signals_notified "
+            "FROM cycle_health ORDER BY cycle_time DESC LIMIT ?",
+            (limit,),
+        )
+        rows = await cur.fetchall()
+        return [
+            {
+                "cycle_time": r[0],
+                "duration_ms": r[1],
+                "symbols_ok": r[2],
+                "symbols_failed": r[3],
+                "signals_emitted": r[4],
+                "signals_notified": r[5],
+            }
+            for r in rows
+        ]
