@@ -75,3 +75,85 @@ def test_s1_long_skipped_when_touch_but_no_rejection(base_time, session_ends):
     )
     signals = S1Bounce().detect(snap, AgentState(pending_breaks=[]))
     assert [s for s in signals if s.direction == "LONG"] == []
+
+
+def test_s1_short_rejection_on_daily_r1(base_time, session_ends):
+    # Daily R1=110.0, dilation=0.5, zone [109.5, 110.5]
+    # Current M5: shooting star into R1 zone, close near low → SHORT signal
+    pivots_d = {"PDL": 100.0, "S1": 95.0, "P": 105.0, "R1": 110.0, "PDH": 115.0}
+    pivots_h4 = {"TC": 106.0, "P": 105.0, "BC": 104.0}
+
+    bars = [
+        bar(t=base_time - timedelta(minutes=10), o=104.0, h=104.5, lo=103.5, c=104.0),
+        bar(t=base_time - timedelta(minutes=5),  o=104.0, h=105.0, lo=103.5, c=104.5),
+        # Current: high=110.4 in R1 zone [109.5, 110.5], close=107.5 (lower third)
+        bar(t=base_time, o=109.0, h=110.4, lo=107.0, c=107.5),
+    ]
+
+    snap = make_snapshot(
+        cycle_time=base_time, m5_bars=bars,
+        pivots={"4H": pivots_h4, "D": pivots_d},
+        session_ends=session_ends,
+    )
+    signals = S1Bounce().detect(snap, AgentState(pending_breaks=[]))
+    shorts = [s for s in signals if s.direction == "SHORT" and s.trigger_pivot.tag == "R1"]
+    assert len(shorts) == 1
+    sig = shorts[0]
+    assert sig.strategy == "S1"
+    assert sig.mode == "intraday"
+    assert sig.trigger_pivot.value == 110.0
+    # SL = 110 + 1.10 * 0.5 = 110.55
+    assert round(sig.stop_loss, 4) == 110.55
+    # Targets: 3 next lower Daily pivots from R1: P=105, S1=95, PDL=100? sorted desc → 105, 100, 95
+    target_values = [t[0] for t in sig.targets]
+    assert target_values == [105.0, 100.0, 95.0]
+
+
+def test_s1_swing_detection_on_weekly_pdl(base_time, session_ends):
+    # Daily has nothing in zone; Weekly PDL=100 is in zone → swing signal
+    pivots_d = {"PDL": 50.0, "S1": 40.0, "P": 60.0, "R1": 70.0, "PDH": 80.0}  # far away
+    pivots_w = {"PDL": 100.0, "S1": 95.0, "P": 105.0, "R1": 110.0, "PDH": 115.0}
+    pivots_h4 = {"TC": 106.0, "P": 105.0, "BC": 104.0}
+
+    bars = [
+        bar(t=base_time - timedelta(minutes=10), o=106.0, h=106.5, lo=105.5, c=106.0),
+        bar(t=base_time - timedelta(minutes=5),  o=106.0, h=106.2, lo=105.0, c=105.5),
+        bar(t=base_time, o=102.0, h=102.7, lo=99.6, c=102.5),  # hammer at Weekly PDL
+    ]
+    snap = make_snapshot(
+        cycle_time=base_time, m5_bars=bars,
+        pivots={"4H": pivots_h4, "D": pivots_d, "W": pivots_w},
+        session_ends=session_ends,
+    )
+    signals = S1Bounce().detect(snap, AgentState(pending_breaks=[]))
+    swing_longs = [s for s in signals if s.direction == "LONG" and s.mode == "swing"]
+    assert len(swing_longs) == 1
+    assert swing_longs[0].trigger_pivot.timeframe == "W"
+    assert swing_longs[0].trigger_pivot.tag == "PDL"
+
+
+def test_s1_emits_distinct_signals_when_multiple_pivots_match(base_time, session_ends):
+    # Both Daily PDL=100 and S1=99 in zone of bar low=98.7
+    # PDL zone [99.5, 100.5]: 98.7 ≤ 100.5 ✓
+    # S1 zone [98.5, 99.5]: 98.7 ≤ 99.5 ✓
+    # → both pivots register
+    pivots_d = {"S1": 99.0, "PDL": 100.0, "P": 105.0, "R1": 110.0, "PDH": 115.0}
+    pivots_h4 = {"TC": 106.0, "P": 105.0, "BC": 104.0}
+    bars = [
+        bar(t=base_time - timedelta(minutes=10), o=102.0, h=102.5, lo=101.5, c=102.0),
+        bar(t=base_time - timedelta(minutes=5),  o=102.0, h=102.0, lo=100.5, c=101.0),
+        bar(t=base_time, o=101.0, h=101.5, lo=98.7, c=101.3),  # rejection low into both zones
+    ]
+    snap = make_snapshot(
+        cycle_time=base_time, m5_bars=bars,
+        pivots={"4H": pivots_h4, "D": pivots_d},
+        session_ends=session_ends,
+    )
+    signals = S1Bounce().detect(snap, AgentState(pending_breaks=[]))
+    longs = [s for s in signals if s.direction == "LONG"]
+    assert len(longs) == 2
+    tags = {s.trigger_pivot.tag for s in longs}
+    assert tags == {"PDL", "S1"}
+    # Ids must be distinct (different pivot_tag in compute_signal_id)
+    ids = {s.id for s in longs}
+    assert len(ids) == 2
