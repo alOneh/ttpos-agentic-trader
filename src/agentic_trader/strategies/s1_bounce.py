@@ -69,7 +69,7 @@ class S1Bounce(Strategy):
             return []
         recent = snapshot.m5_bars[-3:]
         out: list[Signal] = []
-        for mode in ("intraday", "swing"):
+        for mode in ("intraday", "swing", "scalp"):
             for pivot_set in iter_pivot_sets_for_mode(snapshot, mode):
                 out.extend(self._detect_long(snapshot, pivot_set, mode, recent))
                 out.extend(self._detect_short(snapshot, pivot_set, mode, recent))

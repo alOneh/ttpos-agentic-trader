@@ -35,7 +35,7 @@ class S4Sweep(Strategy):
             return []
         cur = snapshot.m5_bars[-1]
         out: list[Signal] = []
-        for mode in ("intraday", "swing"):
+        for mode in ("intraday", "swing", "scalp"):
             for pivot_set in iter_pivot_sets_for_mode(snapshot, mode):
                 out.extend(self._detect_long(snapshot, pivot_set, mode, cur))
                 out.extend(self._detect_short(snapshot, pivot_set, mode, cur))

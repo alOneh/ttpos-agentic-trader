@@ -32,7 +32,7 @@ class S2Breakout(Strategy):
             return []
 
         out: list[Signal] = []
-        for mode in ("intraday", "swing"):
+        for mode in ("intraday", "swing", "scalp"):
             for pivot_set in iter_pivot_sets_for_mode(snapshot, mode):
                 try:
                     p = pivot_set.by_tag("P")

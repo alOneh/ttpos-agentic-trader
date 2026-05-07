@@ -20,7 +20,7 @@ def test_s2_long_breakout_above_daily_p(base_time, session_ends):
         atr_m5=2.0,
     )
     signals = S2Breakout().detect(snap, AgentState(pending_breaks=[]))
-    longs = [s for s in signals if s.direction == "LONG"]
+    longs = [s for s in signals if s.direction == "LONG" and s.mode == "intraday"]
     assert len(longs) == 1
     sig = longs[0]
     assert sig.strategy == "S2"
@@ -46,7 +46,7 @@ def test_s2_short_breakout_below_daily_p(base_time, session_ends):
         atr_m5=2.0,
     )
     signals = S2Breakout().detect(snap, AgentState(pending_breaks=[]))
-    shorts = [s for s in signals if s.direction == "SHORT"]
+    shorts = [s for s in signals if s.direction == "SHORT" and s.mode == "intraday"]
     assert len(shorts) == 1
     assert shorts[0].trigger_pivot.tag == "P"
     assert round(shorts[0].stop_loss, 4) == 100.20

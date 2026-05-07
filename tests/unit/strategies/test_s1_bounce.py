@@ -158,3 +158,24 @@ def test_s1_emits_distinct_signals_when_multiple_pivots_match(base_time, session
     # Ids must be distinct (different pivot_tag in compute_signal_id)
     ids = {s.id for s in longs}
     assert len(ids) == 2
+
+
+def test_s1_scalp_detection_on_4h_pdl(base_time, session_ends):
+    # Daily/Weekly/Monthly bars far from price; 4H PDL=100 in zone of bar low
+    pivots_d = {"PDL": 50.0, "P": 60.0, "PDH": 70.0, "S1": 40.0, "R1": 80.0}
+    pivots_4h = {"PDL": 100.0, "S1": 95.0, "P": 105.0, "R1": 110.0, "PDH": 115.0}
+    bars = [
+        bar(t=base_time - timedelta(minutes=10), o=106.0, h=106.5, lo=105.5, c=106.0),
+        bar(t=base_time - timedelta(minutes=5),  o=106.0, h=106.2, lo=105.0, c=105.5),
+        bar(t=base_time, o=102.0, h=102.7, lo=99.6, c=102.5),  # hammer at 4H PDL
+    ]
+    snap = make_snapshot(
+        cycle_time=base_time, m5_bars=bars,
+        pivots={"4H": pivots_4h, "D": pivots_d},
+        session_ends=session_ends,
+    )
+    signals = S1Bounce().detect(snap, AgentState(pending_breaks=[]))
+    scalp = [s for s in signals if s.mode == "scalp" and s.trigger_pivot.tag == "PDL"]
+    assert len(scalp) == 1
+    assert scalp[0].trigger_pivot.timeframe == "4H"
+    assert scalp[0].trigger_pivot.value == 100.0
