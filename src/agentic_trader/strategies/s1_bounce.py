@@ -62,7 +62,7 @@ def _is_short_rejection(bars: list[Period]) -> bool:
 class S1Bounce(Strategy):
     id: ClassVar[str] = "S1"
     name: ClassVar[str] = "Bounce/Rejet"
-    enabled_modes: ClassVar[set[Mode]] = {"intraday", "swing"}
+    enabled_modes: ClassVar[set[Mode]] = {"intraday", "swing", "scalp"}
 
     def detect(self, snapshot: MarketSnapshot, state: AgentState) -> list[Signal]:
         if len(snapshot.m5_bars) < 1:

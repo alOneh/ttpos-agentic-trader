@@ -28,7 +28,7 @@ def _atr_dilation(p: PivotLevel) -> float:
 class S4Sweep(Strategy):
     id: ClassVar[str] = "S4"
     name: ClassVar[str] = "Liquidity Sweep"
-    enabled_modes: ClassVar[set[Mode]] = {"intraday", "swing"}
+    enabled_modes: ClassVar[set[Mode]] = {"intraday", "swing", "scalp"}
 
     def detect(self, snapshot: MarketSnapshot, state: AgentState) -> list[Signal]:
         if not snapshot.m5_bars:

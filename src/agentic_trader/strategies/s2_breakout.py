@@ -21,7 +21,7 @@ SL_BUFFER_MULT_ATR_M5 = 0.10
 class S2Breakout(Strategy):
     id: ClassVar[str] = "S2"
     name: ClassVar[str] = "Breakout du Pivot Central"
-    enabled_modes: ClassVar[set[Mode]] = {"intraday", "swing"}
+    enabled_modes: ClassVar[set[Mode]] = {"intraday", "swing", "scalp"}
 
     def detect(self, snapshot: MarketSnapshot, state: AgentState) -> list[Signal]:
         if not snapshot.m5_bars:

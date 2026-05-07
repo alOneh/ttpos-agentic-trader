@@ -38,29 +38,38 @@ def _all_pivots(snapshot: MarketSnapshot) -> list[PivotLevel]:
     return out
 
 
-def _is_dwm_zone(zone: ConfluenceZone) -> bool:
-    return any(m.timeframe in ("D", "W", "M") for m in zone.members)
+def _is_triggerable_zone(zone: ConfluenceZone) -> bool:
+    """Any confluence zone with ≥2 members is now triggerable. The members
+    can be 4H-only (scalp), Daily-only (intraday), or any mix.
+    """
+    return True
 
 
 class S5HotZone(Strategy):
     id: ClassVar[str] = "S5"
     name: ClassVar[str] = "Hot Zone (confluence)"
-    enabled_modes: ClassVar[set[Mode]] = {"intraday", "swing"}
+    enabled_modes: ClassVar[set[Mode]] = {"intraday", "swing", "scalp"}
 
     def detect(self, snapshot: MarketSnapshot, state: AgentState) -> list[Signal]:
         if not snapshot.m5_bars:
             return []
         threshold = CONFLUENCE_THRESHOLD_MULT_ATR_D * snapshot.atr_d
-        zones = [z for z in detect_confluence(_all_pivots(snapshot), threshold=threshold) if _is_dwm_zone(z)]
+        all_zones = detect_confluence(_all_pivots(snapshot), threshold=threshold)
+        zones = [z for z in all_zones if _is_triggerable_zone(z)]
         if not zones:
             return []
         recent = snapshot.m5_bars[-3:]
         out: list[Signal] = []
-        for tf in ("D", "W", "M"):
+        for tf in ("4H", "D", "W", "M"):
             if tf not in snapshot.pivots:
                 continue
             pivot_set = snapshot.pivots[tf]
-            mode: Mode = "intraday" if tf == "D" else "swing"
+            if tf == "4H":
+                mode: Mode = "scalp"
+            elif tf == "D":
+                mode = "intraday"
+            else:
+                mode = "swing"
             for tag in LONG_TAGS:
                 try:
                     pivot = pivot_set.by_tag(tag)
