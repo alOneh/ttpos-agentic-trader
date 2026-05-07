@@ -7,8 +7,9 @@ from agentic_trader.backtest.snapshot_builder import build_snapshot_at
 
 
 def _bars(n: int, step_seconds: int, *, base_ts: int = 1700000000):
+    """Generate n bars ending at base_ts (so all bars are <= base_ts)."""
     return [
-        Period(time=base_ts + step_seconds * i, open=100.0, high=101.0,
+        Period(time=base_ts - step_seconds * (n - 1 - i), open=100.0, high=101.0,
                low=99.0, close=100.0, volume=1.0)
         for i in range(n)
     ]
@@ -16,14 +17,21 @@ def _bars(n: int, step_seconds: int, *, base_ts: int = 1700000000):
 
 def _history(symbol: str = "VANTAGE:XAUUSD") -> SymbolHistory:
     info = MarketInfo(name="XAUUSD", pricescale=100.0)
+    base = 1700000000
+    # M5: bars from base..base+59*300 (5 hours of forward bars from base)
+    # t in tests is base+300*N, so M5 bars need to extend forward
+    m5_bars = [
+        Period(time=base + 300 * i, open=100.0, high=101.0, low=99.0, close=100.0, volume=1.0)
+        for i in range(60)
+    ]
     return SymbolHistory(
         symbol=symbol, info=info,
         bars={
-            "5":   _bars(60, 300),       # 5 hours of M5
-            "240": _bars(40, 14400),     # ~6 days of 4H
-            "1D":  _bars(30, 86400),     # 30 days of D
-            "1W":  _bars(30, 7 * 86400), # 30 weeks of W
-            "1M":  _bars(30, 30 * 86400), # 30 months of M
+            "5":   m5_bars,
+            "240": _bars(30, 14400, base_ts=base),       # 30 four-hour bars ending at base
+            "1D":  _bars(30, 86400, base_ts=base),       # 30 daily bars ending at base
+            "1W":  _bars(30, 7 * 86400, base_ts=base),   # 30 weekly bars ending at base
+            "1M":  _bars(30, 30 * 86400, base_ts=base),  # 30 monthly bars ending at base
         },
     )
 
