@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     telegram_chat_id: str = ""
     tv_username: str = ""
     tv_password: str = ""
+    tv_sessionid: str = ""
+    tv_sessionid_sign: str = ""
     log_level: str = "INFO"
     db_path: str = "./data/agent.db"
     notif_dedup_window_min: int = 30

@@ -34,7 +34,13 @@ async def main() -> None:
     await repo.connect()
     await repo.init_schema()
 
-    credentials = Credentials.from_env()
+    # pydantic-settings reads .env into the Settings instance but does NOT push values
+    # into os.environ, so Credentials.from_env() would return anonymous. Build creds
+    # explicitly from settings instead.
+    credentials = Credentials(
+        sessionid=settings.tv_sessionid or None,
+        sessionid_sign=settings.tv_sessionid_sign or None,
+    )
     log.info("tv_auth", anonymous=credentials.is_anonymous)
     client = TradingViewClient(credentials=credentials)
     await client.connect()
