@@ -8,6 +8,7 @@ import asyncio
 import signal
 from pathlib import Path
 
+from tradingview_api.auth import Credentials
 from tradingview_api.client import TradingViewClient
 
 from agentic_trader.config import Settings, WatchlistConfig
@@ -33,7 +34,9 @@ async def main() -> None:
     await repo.connect()
     await repo.init_schema()
 
-    client = TradingViewClient()
+    credentials = Credentials.from_env()
+    log.info("tv_auth", anonymous=credentials.is_anonymous)
+    client = TradingViewClient(credentials=credentials)
     await client.connect()
 
     fetcher = TVFetcher(client)
