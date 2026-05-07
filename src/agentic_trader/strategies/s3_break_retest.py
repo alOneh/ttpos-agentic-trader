@@ -18,7 +18,11 @@ SL_BUFFER_MULT = 1.10
 
 
 def _mode_for_tf(tf: str) -> Mode:
-    return "intraday" if tf == "D" else "swing"
+    if tf == "4H":
+        return "scalp"
+    if tf == "D":
+        return "intraday"
+    return "swing"  # W or M
 
 
 def _atr_dilation(p: PivotLevel) -> float:

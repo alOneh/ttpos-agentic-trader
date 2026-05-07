@@ -119,3 +119,28 @@ def test_s3_skipped_when_no_pending_breaks(base_time, session_ends):
     )
     signals = S3BreakRetest().detect(snap, AgentState(pending_breaks=[]))
     assert signals == []
+
+
+def test_s3_scalp_retest_after_4h_break(base_time, session_ends):
+    pivots_4h = {"PDL": 95.0, "S1": 92.0, "P": 100.0, "R1": 105.0, "PDH": 110.0}
+    pivots_d = {"PDL": 50.0, "P": 60.0, "PDH": 70.0, "S1": 40.0, "R1": 80.0}
+    pb = _pending("VANTAGE:XAUUSD", "P", "4H", 100.0, "LONG",
+                   base_time - timedelta(minutes=30),
+                   base_time + timedelta(minutes=90))
+    state = AgentState(pending_breaks=[pb])
+
+    bars = [
+        bar(t=base_time - timedelta(minutes=5), o=101.0, h=101.5, lo=100.5, c=101.0),
+        bar(t=base_time, o=101.0, h=101.0, lo=99.6, c=100.8),
+    ]
+    snap = make_snapshot(
+        cycle_time=base_time, m5_bars=bars,
+        pivots={"4H": pivots_4h, "D": pivots_d},
+        session_ends=session_ends,
+    )
+    signals = S3BreakRetest().detect(snap, state)
+    longs = [s for s in signals if s.direction == "LONG"]
+    assert len(longs) == 1
+    sig = longs[0]
+    assert sig.mode == "scalp"
+    assert sig.trigger_pivot.timeframe == "4H"
