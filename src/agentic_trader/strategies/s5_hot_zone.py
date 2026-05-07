@@ -24,13 +24,6 @@ from agentic_trader.strategies.s1_bounce import (
 )
 
 CONFLUENCE_THRESHOLD_MULT_ATR_D = 0.30
-TF_PRIORITY = {"M": 3, "W": 2, "D": 1, "4H": 0}
-
-
-def _highest_tf_member(zone: ConfluenceZone) -> PivotLevel:
-    return max(zone.members, key=lambda lv: TF_PRIORITY[lv.timeframe])
-
-
 def _zone_for_pivot(zones: list[ConfluenceZone], pivot: PivotLevel) -> ConfluenceZone | None:
     for z in zones:
         if pivot in z.members:
@@ -105,17 +98,17 @@ class S5HotZone(Strategy):
         mode: Mode,
         direction: Direction,
     ) -> Signal:
+        # Targets ladder uses the TRIGGER pivot's TF (same as S1).
+        # Previous design used the highest-TF zone member which made S5
+        # systematically target Monthly levels even on Daily-driven setups —
+        # unreachable in intraday horizons.
         entry = snapshot.m5_bars[-1].close
         if direction == "LONG":
             sl = zone.low
-            top_tf_member = _highest_tf_member(zone)
-            top_tf_set = snapshot.pivots[top_tf_member.timeframe]
-            targets = ladder_for_long(top_tf_set, from_tag=top_tf_member.tag)
+            targets = ladder_for_long(pivot_set, from_tag=pivot.tag)
         else:
             sl = zone.high
-            top_tf_member = _highest_tf_member(zone)
-            top_tf_set = snapshot.pivots[top_tf_member.timeframe]
-            targets = ladder_for_short(top_tf_set, from_tag=top_tf_member.tag)
+            targets = ladder_for_short(pivot_set, from_tag=pivot.tag)
         return build_signal(
             symbol=snapshot.symbol,
             strategy="S5",
