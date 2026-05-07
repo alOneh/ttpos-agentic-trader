@@ -7,8 +7,9 @@ Multi-timeframe pivot scanner that detects trading setups on M5 and notifies via
 **Plan 1 (Foundation + Data layer) — implemented.**
 **Plan 2 (Strategies S1-S6) — implemented.**
 **Plan 3 (Live MVP + Telegram) — implemented.**
+**Plan 4 (Backtest V2) — implemented.**
 
-Plans 4 (Backtest V2), 5 (Deployment) — pending.
+Plan 5 (Deployment) — pending.
 
 ## Quick start (Plan 1 demo)
 
@@ -54,6 +55,21 @@ python -m agentic_trader.live.main
 Runs continuously: every 5 minutes (UTC `:00:02 / :05:02 / …`) it fetches the watchlist, computes pivots, runs all enabled strategies, persists signals to SQLite, applies the priority + temporal dedup, and sends survivors to Telegram. SIGINT/SIGTERM trigger a graceful shutdown.
 
 Healthcheck (for Docker): `python -m agentic_trader.observability.healthcheck` exits 0 iff the last cycle is < 10 minutes old.
+
+## Backtest (Plan 4)
+
+```bash
+python -m agentic_trader.backtest.cli \
+    --symbol VANTAGE:XAUUSD \
+    --from 2025-11-01 --to 2025-11-30 \
+    --strategies S1,S2,S3,S4,S5,S6 \
+    --partial-take 33,33,34 \
+    --output backtest_xauusd_2025_11.json
+```
+
+Walk-forward replay over historical M5 bars. Each detected setup opens a `SimulatedTrade` with the strategy's spec'd SL + multi-TP ladder. Subsequent bars apply SL/TP fills (priority SL > TP1 > TP2 > TP3 within a bar). Output JSON includes per-trade events (entry, TPs, SL, MFE/MAE in R, exit time) and per-strategy metrics (win rate, expectancy in R, Sharpe-on-R, max drawdown).
+
+V2.0 limitations: no slippage, fill at exact level price. Bar-internal sequencing is conservative (SL assumed first when range covers both SL and TP). Add slippage model in a later iteration if needed.
 
 ## Project structure
 
