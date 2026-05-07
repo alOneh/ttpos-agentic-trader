@@ -117,3 +117,70 @@ async def test_cycle_end_to_end_emits_signals_and_calls_telegram(tmp_path, monke
 
     await notifier.close()
     await repo.close()
+
+
+async def test_cycle_filters_by_per_symbol_modes(tmp_path):
+    """Verify sym_cfg.modes is enforced at the cycle level."""
+    base = 1700000000
+
+    def fake_fetch(*, symbol, timeframe, n_bars, client):
+        info = MarketInfo(name=symbol.split(":")[-1], pricescale=100.0)
+        if timeframe == "5":
+            bars = [
+                Period(time=base + 300 * i, open=100.5, high=100.8, low=100.2, close=100.5, volume=1.0)
+                for i in range(289)
+            ]
+            bars.append(Period(time=base + 300 * 289, open=99.7, high=99.8, low=98.9, close=99.6, volume=1.0))
+            return OHLCVResult(symbol=symbol, timeframe="5", info=info, periods=bars)
+        seconds = {"240": 14400, "1D": 86400, "1W": 7 * 86400, "1M": 30 * 86400}[timeframe]
+        return OHLCVResult(
+            symbol=symbol, timeframe=timeframe, info=info,
+            periods=[
+                Period(time=base + seconds * i, open=100.0, high=101.0, low=99.0, close=100.0, volume=1.0)
+                for i in range(30)
+            ],
+        )
+
+    fetcher = TVFetcher(client=None, fetch_ohlcv_fn=AsyncMock(side_effect=fake_fetch))
+
+    sent_messages = []
+
+    def telegram_handler(request):
+        sent_messages.append(request.read().decode())
+        return httpx.Response(200, json={"ok": True})
+
+    notifier = TelegramNotifier(
+        token="T", chat_id="C",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(telegram_handler), timeout=2.0),
+    )
+    repo = Repository(db_path=tmp_path / "modes.db")
+    await repo.connect()
+    await repo.init_schema()
+    cache = PivotsCache(repo)
+
+    settings = Settings(
+        telegram_bot_token="T", telegram_chat_id="C",
+        db_path=str(tmp_path / "modes.db"),
+        notif_dedup_window_min=30, notif_dedup_within_atr=0.10,
+    )
+    # Symbol restricted to scalp only — even though strategies emit intraday too,
+    # only scalp signals should land in signals_log.
+    cfg = WatchlistConfig(
+        defaults=StrategyDefaults(),
+        watchlist=[SymbolConfig(
+            symbol="VANTAGE:XAUUSD", modes=["scalp"],
+            strategies=["S1", "S2", "S3", "S4", "S5", "S6"],
+        )],
+    )
+    dedup = NotifDedupPolicy(window_min=30, within_atr=0.10)
+    deps = Deps(settings=settings, config=cfg, repo=repo, fetcher=fetcher,
+                cache=cache, notifier=notifier, dedup=dedup)
+
+    report = await run_cycle(deps)
+
+    saved = await repo.load_signals_since(report.cycle_time)
+    # All retained signals must be scalp mode
+    assert all(s.mode == "scalp" for s in saved), \
+        f"non-scalp signal leaked: {[s.mode for s in saved if s.mode != 'scalp']}"
+    await notifier.close()
+    await repo.close()

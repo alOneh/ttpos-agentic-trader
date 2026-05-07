@@ -24,6 +24,7 @@ class BacktestConfig:
     from_date: datetime  # inclusive
     to_date: datetime    # inclusive
     strategies: list[str] | None = None  # None = all
+    modes: list[str] | None = None  # None = all (intraday, swing, scalp)
     partial_take: tuple[float, float, float] = (33.0, 33.0, 34.0)
 
 
@@ -97,6 +98,10 @@ async def run_backtest(
     to_ts = int(config.to_date.timestamp())
     state = AgentState(pending_breaks=[])
 
+    allowed_modes: set[str] | None = (
+        set(config.modes) if config.modes is not None else None
+    )
+
     for bar in history.m5():
         if bar.time < from_ts or bar.time > to_ts:
             continue
@@ -122,9 +127,13 @@ async def run_backtest(
         signals: list[Signal] = []
         for strat in strategies:
             try:
-                signals.extend(strat.detect(snap, state))
+                emitted = strat.detect(snap, state)
             except Exception:
                 log.exception("backtest_detect_failed", strategy=strat.id)
+                continue
+            for sig in emitted:
+                if allowed_modes is None or sig.mode in allowed_modes:
+                    signals.append(sig)
 
         for sig in signals:
             n_signals += 1

@@ -74,3 +74,46 @@ async def test_backtest_runs_end_to_end_and_simulates_a_trade():
     assert any(t.events for t in s1_trades)
     # Metrics dict should have S1 entry
     assert "S1" in result.metrics
+
+
+async def test_backtest_filters_by_modes_when_set():
+    base = 1700000000
+    info = MarketInfo(name="XAUUSD", pricescale=100.0)
+
+    m5 = [
+        Period(time=base + 300 * i, open=100.5, high=100.8, low=100.2, close=100.5, volume=1.0)
+        for i in range(289)
+    ]
+    m5.append(Period(time=base + 300 * 289, open=99.7, high=99.8, low=98.9, close=99.6, volume=1.0))
+    daily = [
+        Period(time=base - 86400 * (29 - i), open=100.0, high=101.0, low=99.0, close=100.0, volume=1.0)
+        for i in range(30)
+    ]
+
+    def fake_fetch(*, symbol, timeframe, n_bars, to=None):
+        if timeframe == "5":
+            return OHLCVResult(symbol=symbol, timeframe="5", info=info, periods=m5)
+        if timeframe == "1D":
+            return OHLCVResult(symbol=symbol, timeframe="1D", info=info, periods=daily)
+        seconds = {"240": 14400, "1W": 7 * 86400, "1M": 30 * 86400}[timeframe]
+        return OHLCVResult(
+            symbol=symbol, timeframe=timeframe, info=info,
+            periods=[
+                Period(
+                    time=base - seconds * (29 - i),
+                    open=100.0, high=101.0, low=99.0, close=100.0, volume=1.0,
+                )
+                for i in range(30)
+            ],
+        )
+
+    cfg_intraday = BacktestConfig(
+        symbol="VANTAGE:XAUUSD",
+        from_date=datetime.fromtimestamp(base + 300 * 280, tz=UTC),
+        to_date=datetime.fromtimestamp(base + 300 * 295, tz=UTC),
+        strategies=["S1"],
+        modes=["intraday"],
+    )
+    res = await run_backtest(cfg_intraday, fetch_ohlcv_fn=AsyncMock(side_effect=fake_fetch))
+    assert all(t.mode == "intraday" for t in res.trades), \
+        f"non-intraday trade leaked: {[t.mode for t in res.trades if t.mode != 'intraday']}"

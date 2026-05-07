@@ -89,14 +89,23 @@ async def run_cycle(deps: Deps) -> CycleReport:
     state = state.merge(new_breaks)
 
     # Run strategies
+    # Build a {symbol: allowed_modes} index for quick post-detection filtering
+    modes_by_symbol: dict[str, set[str]] = {
+        sc.symbol: set(sc.modes) for sc in deps.config.watchlist
+    }
     signals: list[Signal] = []
     for symbol, snap in snapshots.items():
+        allowed_modes = modes_by_symbol.get(symbol, set())
         for strategy in enabled_for(symbol, deps.config):
             try:
-                signals.extend(strategy.detect(snap, state))
+                emitted = strategy.detect(snap, state)
             except Exception:
                 log_cycle.exception("strategy_detect_failed",
                                      strategy=strategy.id, symbol=symbol)
+                continue
+            for sig in emitted:
+                if sig.mode in allowed_modes:
+                    signals.append(sig)
 
     await deps.repo.save_signals(signals)
     await deps.repo.save_state(state)
