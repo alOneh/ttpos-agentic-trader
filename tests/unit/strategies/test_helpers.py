@@ -159,3 +159,29 @@ def test_h4_context_returns_none_when_4h_missing():
         market_info=MarketInfo(name="X", pricescale=100.0),
     )
     assert h4_context(snap, entry=100.0) is None
+
+
+def test_scalp_tfs_only_4h():
+    from agentic_trader.strategies.helpers import SCALP_TFS
+    assert SCALP_TFS == ("4H",)
+
+
+def test_iter_pivot_sets_for_mode_scalp_yields_4h():
+    from tradingview_api.models.ohlcv import MarketInfo, Period
+
+    from agentic_trader.domain.snapshot import MarketSnapshot
+    from agentic_trader.strategies.helpers import iter_pivot_sets_for_mode
+    se = datetime(2026, 5, 6, 22, 0, tzinfo=UTC)
+    bar = Period(time=int(se.timestamp()), open=1, high=2, low=0, close=1, volume=1.0)
+    snap = MarketSnapshot(
+        symbol="VANTAGE:XAUUSD", cycle_time=se, m5_bars=[bar],
+        pivots={
+            "4H": _ps("4H", {"P": 100.0}, se),
+            "D":  _ps("D", {"P": 105.0}, se),
+        },
+        atr_m5=1.0, atr_d=10.0,
+        market_info=MarketInfo(name="XAUUSD", pricescale=100.0),
+    )
+    out = list(iter_pivot_sets_for_mode(snap, "scalp"))
+    assert len(out) == 1
+    assert out[0].timeframe == "4H"

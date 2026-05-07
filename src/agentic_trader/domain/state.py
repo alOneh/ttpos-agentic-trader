@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-PivotTfState = Literal["D", "W", "M"]
+PivotTfState = Literal["4H", "D", "W", "M"]
 
 
 class PendingBreak(BaseModel):

@@ -9,7 +9,7 @@ from agentic_trader.domain.pivots import PivotLevel
 
 StrategyId = Literal["S1", "S2", "S3", "S4", "S5", "S6"]
 Direction = Literal["LONG", "SHORT"]
-Mode = Literal["intraday", "swing"]
+Mode = Literal["intraday", "swing", "scalp"]
 
 
 class Signal(BaseModel):

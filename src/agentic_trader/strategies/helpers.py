@@ -10,13 +10,19 @@ from agentic_trader.domain.snapshot import MarketSnapshot
 
 INTRADAY_TFS: tuple[TF, ...] = ("D",)
 SWING_TFS: tuple[TF, ...] = ("W", "M")
+SCALP_TFS: tuple[TF, ...] = ("4H",)
 
 
 def iter_pivot_sets_for_mode(
     snapshot: MarketSnapshot, mode: Mode
 ) -> Iterator[PivotSet]:
     """Yield the pivot sets corresponding to the given mode, skipping missing TFs."""
-    tfs = INTRADAY_TFS if mode == "intraday" else SWING_TFS
+    if mode == "scalp":
+        tfs: tuple[TF, ...] = SCALP_TFS
+    elif mode == "intraday":
+        tfs = INTRADAY_TFS
+    else:  # swing
+        tfs = SWING_TFS
     for tf in tfs:
         if tf in snapshot.pivots:
             yield snapshot.pivots[tf]
