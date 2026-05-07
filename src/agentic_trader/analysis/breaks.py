@@ -20,7 +20,8 @@ def detect_breaks(
     symbol: str,
 ) -> list[PendingBreak]:
     """Return PendingBreak entries for any pivot the bar's close traversed
-    with body > body_min_atr_m5 * atr_m5. Skips 4H pivots (context-only).
+    with body > body_min_atr_m5 * atr_m5. All pivot TFs are tracked (4H
+    eligible since Plan 5 / scalp mode).
     """
     body = abs(bar.close - bar.open)
     if body < body_min_atr_m5 * atr_m5:
@@ -31,8 +32,6 @@ def detect_breaks(
     out: list[PendingBreak] = []
 
     for p in pivots:
-        if p.timeframe == "4H":
-            continue
         crossed_up = bar.open < p.value <= bar.close
         crossed_down = bar.open > p.value >= bar.close
         if crossed_up:

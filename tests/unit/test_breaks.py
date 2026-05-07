@@ -57,9 +57,11 @@ def test_pending_break_expires_at_24_m5_bars_later():
     assert breaks[0].expires_at == expected_expiry
 
 
-def test_4h_pivot_is_skipped():
-    # 4H pivots are context only, not break-trackable for S3
+def test_4h_pivot_is_now_tracked_for_scalp():
+    # As of Plan 5, 4H pivots are eligible for break tracking (scalp mode S3 retest)
     bar = _bar(o=99.0, h=101.5, lo=98.5, c=101.0)
     pivots = [_pivot(value=100.0, tf="4H")]
     breaks = detect_breaks(bar, pivots, atr_m5=2.0, body_min_atr_m5=0.5, symbol="X")
-    assert breaks == []
+    assert len(breaks) == 1
+    assert breaks[0].pivot_tf == "4H"
+    assert breaks[0].direction == "LONG"
