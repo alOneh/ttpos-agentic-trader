@@ -155,12 +155,22 @@ S5 et S6 sont des **strict supersets** des conditions S1 (avec un filtre additio
 
 S2, S3, S4 ne sont pas dans cette chaîne — ils ont des triggers distincts, leurs signaux ne se chevauchent pas avec S1/S5/S6 sur la même bougie.
 
-### 3.4 Mode (intraday / swing)
+### 3.4 Mode (intraday / swing / scalp)
 
 - `intraday` : pivots Daily.
-- `swing` : pivots Weekly et Monthly. Un même symbole peut émettre plusieurs signaux dans le même cycle (ex : S1 intraday sur PDL Daily + S1 swing sur PDL Weekly), traités comme indépendants.
+- `swing` : pivots Weekly et Monthly.
+- `scalp` : pivots 4H. Ajouté dans Plan 5 après observation que des setups
+  4H de qualité étaient systématiquement manqués (4H était context-only).
 
-S2 est principalement intraday (P Daily) ; sa version swing existe (P Weekly, P Monthly) et est activée par défaut.
+Un même symbole peut émettre plusieurs signaux dans le même cycle (ex : S1
+intraday sur PDL Daily + S1 swing sur PDL Weekly + S1 scalp sur PDL 4H),
+traités comme indépendants. La couche orchestrateur (`live/cycle.py` et
+`backtest/runner.py`) filtre par `sym_cfg.modes` avant persistance/notif.
+
+S2 et S6 :
+- S2 (Breakout Pivot Central) supporte les 3 modes — P existe en 4H/D/W/M.
+- S6 (Sweet Spot) reste **Daily uniquement** (la condition narrow CPR Daily
+  est intrinsèquement liée à la TF Daily).
 
 ## 4. Architecture
 

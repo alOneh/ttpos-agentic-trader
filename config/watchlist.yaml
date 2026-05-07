@@ -1,5 +1,5 @@
 defaults:
-  modes: [intraday]   # add 'swing' / 'scalp' (when implemented) per symbol or globally
+  modes: [intraday]   # one or more of: scalp (4H), intraday (D), swing (W+M)
   strategies: [S1, S2, S3, S4, S5, S6]
   atr_dilation_mult: 0.15
   atr_dilation_cap_d_mult: 0.50

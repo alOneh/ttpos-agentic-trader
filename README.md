@@ -8,8 +8,9 @@ Multi-timeframe pivot scanner that detects trading setups on M5 and notifies via
 **Plan 2 (Strategies S1-S6) — implemented.**
 **Plan 3 (Live MVP + Telegram) — implemented.**
 **Plan 4 (Backtest V2) — implemented.**
+**Plan 5 (Scalping mode / 4H trigger) — implemented.**
 
-Plan 5 (Deployment) — pending.
+Plan 6 (Deployment) — pending.
 
 ## Quick start (Plan 1 demo)
 
@@ -70,6 +71,32 @@ python -m agentic_trader.backtest.cli \
 Walk-forward replay over historical M5 bars. Each detected setup opens a `SimulatedTrade` with the strategy's spec'd SL + multi-TP ladder. Subsequent bars apply SL/TP fills (priority SL > TP1 > TP2 > TP3 within a bar). Output JSON includes per-trade events (entry, TPs, SL, MFE/MAE in R, exit time) and per-strategy metrics (win rate, expectancy in R, Sharpe-on-R, max drawdown).
 
 V2.0 limitations: no slippage, fill at exact level price. Bar-internal sequencing is conservative (SL assumed first when range covers both SL and TP). Add slippage model in a later iteration if needed.
+
+## Modes
+
+Three independent trading modes coexist:
+
+| Mode | Pivot TFs | Rationale |
+|---|---|---|
+| `scalp` | 4H | Short holding horizons, tight SL / close TPs |
+| `intraday` | Daily | Standard intra-day setups |
+| `swing` | Weekly + Monthly | Multi-day to multi-week holds |
+
+Per symbol, choose modes via `config/watchlist.yaml`:
+
+```yaml
+watchlist:
+  - symbol: VANTAGE:XAUUSD
+    modes: [scalp, intraday]   # active only on these
+  - symbol: VANTAGE:DJ30
+    modes: [intraday]
+```
+
+The default is `[intraday]`. Strategies emit all modes they support;
+the orchestrator filters by `modes` before persistence and Telegram.
+
+S6 Sweet Spot is the only strategy locked to a specific mode (Daily/intraday
+— its narrow-CPR-Daily filter is structurally Daily-tied).
 
 ## Project structure
 
