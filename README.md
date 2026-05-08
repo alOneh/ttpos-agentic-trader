@@ -98,6 +98,20 @@ the orchestrator filters by `modes` before persistence and Telegram.
 S6 Sweet Spot is the only strategy locked to a specific mode (Daily/intraday
 — its narrow-CPR-Daily filter is structurally Daily-tied).
 
+## Signal quality filter
+
+Signals with `TP1 R/R < MIN_RR_TP1` (default 1.5) are dropped at the orchestrator
+layer — they're never persisted, never sent to Telegram. This addresses scalp-mode
+signals where 4H pivots are tight and SL eats most of the risk budget. Override via
+`.env`:
+
+```
+MIN_RR_TP1=1.5   # raise to 2.0 for stricter quality, lower to 1.0 for more flow
+```
+
+In backtest mode, set `BacktestConfig.min_rr_tp1` (default `None` = no filter, so
+existing baseline backtests still see all signals).
+
 ## Project structure
 
 See `docs/superpowers/plans/2026-05-05-plan-1-foundation-and-data-layer.md`

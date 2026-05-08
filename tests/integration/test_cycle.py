@@ -82,6 +82,7 @@ async def test_cycle_end_to_end_emits_signals_and_calls_telegram(tmp_path, monke
         telegram_bot_token="T", telegram_chat_id="C",
         db_path=str(tmp_path / "cycle.db"),
         notif_dedup_window_min=30, notif_dedup_within_atr=0.10,
+        min_rr_tp1=0.0,  # disable R/R filter — this test covers Telegram dispatch, not R/R
     )
     cfg = WatchlistConfig(
         defaults=StrategyDefaults(),
@@ -182,5 +183,65 @@ async def test_cycle_filters_by_per_symbol_modes(tmp_path):
     # All retained signals must be scalp mode
     assert all(s.mode == "scalp" for s in saved), \
         f"non-scalp signal leaked: {[s.mode for s in saved if s.mode != 'scalp']}"
+    await notifier.close()
+    await repo.close()
+
+
+async def test_cycle_filters_low_rr_signals(tmp_path):
+    """Verify signals with TP1 R/R < min_rr_tp1 are dropped."""
+    base = 1700000000
+
+    def fake_fetch(*, symbol, timeframe, n_bars, client):
+        info = MarketInfo(name=symbol.split(":")[-1], pricescale=100.0)
+        if timeframe == "5":
+            bars = [
+                Period(time=base + 300 * i, open=100.5, high=100.8, low=100.2, close=100.5, volume=1.0)
+                for i in range(289)
+            ]
+            bars.append(Period(time=base + 300 * 289, open=99.7, high=99.8, low=98.9, close=99.6, volume=1.0))
+            return OHLCVResult(symbol=symbol, timeframe="5", info=info, periods=bars)
+        seconds = {"240": 14400, "1D": 86400, "1W": 7 * 86400, "1M": 30 * 86400}[timeframe]
+        return OHLCVResult(
+            symbol=symbol, timeframe=timeframe, info=info,
+            periods=[
+                Period(time=base + seconds * i, open=100.0, high=101.0, low=99.0, close=100.0, volume=1.0)
+                for i in range(30)
+            ],
+        )
+
+    fetcher = TVFetcher(client=None, fetch_ohlcv_fn=AsyncMock(side_effect=fake_fetch))
+
+    def telegram_handler(request):
+        return httpx.Response(200, json={"ok": True})
+    notifier = TelegramNotifier(
+        token="T", chat_id="C",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(telegram_handler), timeout=2.0),
+    )
+    repo = Repository(db_path=tmp_path / "rr.db")
+    await repo.connect()
+    await repo.init_schema()
+    cache = PivotsCache(repo)
+
+    # Set an absurdly high threshold (10) so all signals are filtered out
+    settings = Settings(
+        telegram_bot_token="T", telegram_chat_id="C",
+        db_path=str(tmp_path / "rr.db"),
+        notif_dedup_window_min=30, notif_dedup_within_atr=0.10,
+        min_rr_tp1=10.0,
+    )
+    cfg = WatchlistConfig(
+        defaults=StrategyDefaults(),
+        watchlist=[SymbolConfig(
+            symbol="VANTAGE:XAUUSD", modes=["intraday", "swing", "scalp"],
+            strategies=["S1", "S2", "S3", "S4", "S5", "S6"],
+        )],
+    )
+    dedup = NotifDedupPolicy(window_min=30, within_atr=0.10)
+    deps = Deps(settings=settings, config=cfg, repo=repo, fetcher=fetcher,
+                cache=cache, notifier=notifier, dedup=dedup)
+
+    report = await run_cycle(deps)
+    # With min_rr_tp1=10, no signal should pass
+    assert report.signals_emitted == 0
     await notifier.close()
     await repo.close()

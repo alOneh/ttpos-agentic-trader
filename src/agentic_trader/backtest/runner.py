@@ -26,6 +26,7 @@ class BacktestConfig:
     strategies: list[str] | None = None  # None = all
     modes: list[str] | None = None  # None = all (intraday, swing, scalp)
     partial_take: tuple[float, float, float] = (33.0, 33.0, 34.0)
+    min_rr_tp1: float | None = None  # None = no R/R filter; backwards-compatible default
 
 
 @dataclass
@@ -132,8 +133,12 @@ async def run_backtest(
                 log.exception("backtest_detect_failed", strategy=strat.id)
                 continue
             for sig in emitted:
-                if allowed_modes is None or sig.mode in allowed_modes:
-                    signals.append(sig)
+                if allowed_modes is not None and sig.mode not in allowed_modes:
+                    continue
+                if config.min_rr_tp1 is not None:
+                    if not sig.r_multiples or sig.r_multiples[0] < config.min_rr_tp1:
+                        continue
+                signals.append(sig)
 
         for sig in signals:
             n_signals += 1

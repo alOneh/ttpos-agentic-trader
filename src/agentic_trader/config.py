@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     notif_dedup_window_min: int = 30
     notif_dedup_within_atr: float = 0.10
     schedule_offset_seconds: int = 2
+    min_rr_tp1: float = 1.5   # drop signals where TP1 R/R < this threshold
 
 
 class StrategyDefaults(BaseModel):

@@ -104,8 +104,11 @@ async def run_cycle(deps: Deps) -> CycleReport:
                                      strategy=strategy.id, symbol=symbol)
                 continue
             for sig in emitted:
-                if sig.mode in allowed_modes:
-                    signals.append(sig)
+                if sig.mode not in allowed_modes:
+                    continue
+                if not sig.r_multiples or sig.r_multiples[0] < deps.settings.min_rr_tp1:
+                    continue
+                signals.append(sig)
 
     await deps.repo.save_signals(signals)
     await deps.repo.save_state(state)
