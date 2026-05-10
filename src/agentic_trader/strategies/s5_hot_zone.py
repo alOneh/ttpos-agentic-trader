@@ -111,12 +111,14 @@ class S5HotZone(Strategy):
         # Previous design used the highest-TF zone member which made S5
         # systematically target Monthly levels even on Daily-driven setups —
         # unreachable in intraday horizons.
-        entry = snapshot.m5_bars[-1].close
+        cur = snapshot.m5_bars[-1]
+        entry = cur.close
+        atr_buf = 0.10 * snapshot.atr_m5
         if direction == "LONG":
-            sl = zone.low
+            sl = min(cur.low - atr_buf, zone.low)
             targets = ladder_for_long(pivot_set, from_tag=pivot.tag)
         else:
-            sl = zone.high
+            sl = max(cur.high + atr_buf, zone.high)
             targets = ladder_for_short(pivot_set, from_tag=pivot.tag)
         return build_signal(
             symbol=snapshot.symbol,

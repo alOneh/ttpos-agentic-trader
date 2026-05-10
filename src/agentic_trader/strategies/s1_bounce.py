@@ -28,7 +28,7 @@ from agentic_trader.strategies.helpers import (
 
 LONG_TAGS: tuple[str, ...] = ("PDL", "S1")
 SHORT_TAGS: tuple[str, ...] = ("PDH", "R1")
-SL_BUFFER_MULT = 1.10  # SL placed at pivot ± 1.10 × atr_dilation
+SL_BUFFER_MULT_ATR_M5 = 0.10  # buffer beyond confirmation candle's wick
 
 
 def _any_low_in_zone(bars: list[Period], pivot: PivotLevel) -> bool:
@@ -98,9 +98,9 @@ class S1Bounce(Strategy):
                 continue
             if not _is_long_rejection(recent):
                 continue
-            atr_dilation = pivot.dilated_high - pivot.value
-            entry = snapshot.m5_bars[-1].close
-            sl = pivot.value - SL_BUFFER_MULT * atr_dilation
+            cur = snapshot.m5_bars[-1]
+            entry = cur.close
+            sl = cur.low - SL_BUFFER_MULT_ATR_M5 * snapshot.atr_m5
             targets = ladder_for_long(pivot_set, from_tag=tag)
             out.append(
                 build_signal(
@@ -136,9 +136,9 @@ class S1Bounce(Strategy):
                 continue
             if not _is_short_rejection(recent):
                 continue
-            atr_dilation = pivot.dilated_high - pivot.value
-            entry = snapshot.m5_bars[-1].close
-            sl = pivot.value + SL_BUFFER_MULT * atr_dilation
+            cur = snapshot.m5_bars[-1]
+            entry = cur.close
+            sl = cur.high + SL_BUFFER_MULT_ATR_M5 * snapshot.atr_m5
             targets = ladder_for_short(pivot_set, from_tag=tag)
             out.append(
                 build_signal(

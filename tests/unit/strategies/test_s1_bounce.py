@@ -32,8 +32,8 @@ def test_s1_long_bounce_on_daily_pdl(base_time, session_ends):
     assert sig.strategy == "S1"
     assert sig.mode == "intraday"
     assert sig.trigger_pivot.value == 100.0
-    # SL = 100 - 1.10 * 0.5 = 99.45
-    assert round(sig.stop_loss, 4) == 99.45
+    # SL = cur.low (99.6) - 0.10 × atr_m5 (1.0) = 99.50
+    assert round(sig.stop_loss, 4) == 99.50
     # Targets: 3 next higher Daily pivots: P=105, R1=110, PDH=115
     target_values = [t[0] for t in sig.targets]
     assert target_values == [105.0, 110.0, 115.0]
@@ -103,8 +103,8 @@ def test_s1_short_rejection_on_daily_r1(base_time, session_ends):
     assert sig.strategy == "S1"
     assert sig.mode == "intraday"
     assert sig.trigger_pivot.value == 110.0
-    # SL = 110 + 1.10 * 0.5 = 110.55
-    assert round(sig.stop_loss, 4) == 110.55
+    # SL = cur.high (110.4) + 0.10 × atr_m5 (1.0) = 110.50
+    assert round(sig.stop_loss, 4) == 110.50
     # Targets: 3 next lower Daily pivots from R1: P=105, S1=95, PDL=100? sorted desc → 105, 100, 95
     target_values = [t[0] for t in sig.targets]
     assert target_values == [105.0, 100.0, 95.0]

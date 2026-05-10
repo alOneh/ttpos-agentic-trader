@@ -14,8 +14,6 @@ from agentic_trader.strategies.helpers import (
     ladder_for_short,
 )
 
-SL_BUFFER_MULT = 1.10
-
 
 def _mode_for_tf(tf: str) -> Mode:
     if tf == "4H":
@@ -23,10 +21,6 @@ def _mode_for_tf(tf: str) -> Mode:
     if tf == "D":
         return "intraday"
     return "swing"  # W or M
-
-
-def _atr_dilation(p: PivotLevel) -> float:
-    return p.dilated_high - p.value
 
 
 class S3BreakRetest(Strategy):
@@ -62,14 +56,13 @@ class S3BreakRetest(Strategy):
         p: PivotLevel,
         cur,
     ) -> Signal | None:
-        d = _atr_dilation(p)
         if pb.direction == "LONG":
             # Retest from above: low touches zone AND close > pivot
             if not (p.dilated_low <= cur.low <= p.dilated_high):
                 return None
             if cur.close <= p.value:
                 return None
-            sl = p.value - SL_BUFFER_MULT * d
+            sl = cur.low - 0.10 * snapshot.atr_m5
             targets = ladder_for_long(pivot_set, from_tag=pb.pivot_tag)
         else:
             # Retest from below: high touches zone AND close < pivot
@@ -77,7 +70,7 @@ class S3BreakRetest(Strategy):
                 return None
             if cur.close >= p.value:
                 return None
-            sl = p.value + SL_BUFFER_MULT * d
+            sl = cur.high + 0.10 * snapshot.atr_m5
             targets = ladder_for_short(pivot_set, from_tag=pb.pivot_tag)
         return build_signal(
             symbol=snapshot.symbol, strategy="S3", direction=pb.direction,

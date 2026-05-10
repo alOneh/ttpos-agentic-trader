@@ -37,7 +37,7 @@ def test_s3_long_retest_after_break(base_time, session_ends):
     sig = longs[0]
     assert sig.strategy == "S3"
     assert sig.trigger_pivot.tag == "P"
-    assert round(sig.stop_loss, 4) == 99.45  # 100 - 1.10 * 0.5
+    assert round(sig.stop_loss, 4) == 99.50  # cur.low (99.6) - 0.10 × atr_m5 (1.0)
     target_values = [t[0] for t in sig.targets]
     assert target_values == [105.0, 110.0]
 
@@ -63,7 +63,7 @@ def test_s3_short_retest_after_break(base_time, session_ends):
     shorts = [s for s in signals if s.direction == "SHORT"]
     assert len(shorts) == 1
     sig = shorts[0]
-    assert round(sig.stop_loss, 4) == 100.55
+    assert round(sig.stop_loss, 4) == 100.50  # cur.high (100.4) + 0.10 × atr_m5 (1.0)
     target_values = [t[0] for t in sig.targets]
     assert target_values == [95.0, 90.0]
 

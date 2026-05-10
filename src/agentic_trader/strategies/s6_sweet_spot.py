@@ -15,7 +15,7 @@ from agentic_trader.strategies.helpers import (
 from agentic_trader.strategies.s1_bounce import (
     LONG_TAGS,
     SHORT_TAGS,
-    SL_BUFFER_MULT,
+    SL_BUFFER_MULT_ATR_M5,
     _any_high_in_zone,
     _any_low_in_zone,
     _is_long_rejection,
@@ -49,9 +49,9 @@ class S6SweetSpot(Strategy):
                 continue
             if not _is_long_rejection(recent):
                 continue
-            entry = snapshot.m5_bars[-1].close
-            atr_dilation = pivot.dilated_high - pivot.value
-            sl = pivot.value - SL_BUFFER_MULT * atr_dilation
+            cur = snapshot.m5_bars[-1]
+            entry = cur.close
+            sl = cur.low - SL_BUFFER_MULT_ATR_M5 * snapshot.atr_m5
             out.append(build_signal(
                 symbol=snapshot.symbol, strategy="S6", direction="LONG", mode="intraday",
                 trigger_pivot=pivot, entry=entry, stop_loss=sl,
@@ -68,9 +68,9 @@ class S6SweetSpot(Strategy):
                 continue
             if not _is_short_rejection(recent):
                 continue
-            entry = snapshot.m5_bars[-1].close
-            atr_dilation = pivot.dilated_high - pivot.value
-            sl = pivot.value + SL_BUFFER_MULT * atr_dilation
+            cur = snapshot.m5_bars[-1]
+            entry = cur.close
+            sl = cur.high + SL_BUFFER_MULT_ATR_M5 * snapshot.atr_m5
             out.append(build_signal(
                 symbol=snapshot.symbol, strategy="S6", direction="SHORT", mode="intraday",
                 trigger_pivot=pivot, entry=entry, stop_loss=sl,
