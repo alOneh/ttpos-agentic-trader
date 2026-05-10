@@ -75,7 +75,7 @@ Les **6 stratégies** sont indépendantes, chacune implémente l'interface `Stra
   - OR `engulfing(side)` : sa range englobe celle de la bougie précédente, et close dans le sens du rejet ;
   - OR `doji(body_ratio_max=0.1)` AVEC `dominant_wick(side)` : body ≤ 10% de la range, et la mèche du côté testé est ≥ 2× la mèche opposée.
 
-**SL** : `pivot_value - 1.10 × atr_dilation` pour LONG (`+1.10 × atr_dilation` pour SHORT). Soit la borne extérieure de la zone dilatée, augmentée de 10% pour ne pas être stoppé par un tick de bruit qui touche pile la frontière.
+**SL** : Plan 6 update — `cur.low - 0.10 × ATR_M5` pour LONG, `cur.high + 0.10 × ATR_M5` pour SHORT. C'est la mèche de la bougie de confirmation, augmentée d'un buffer ATR_M5 pour éviter les stops sur bruit. Ancien : `pivot ± 1.10 × atr_dilation` (déprécié — pouvait être au-dessus/en-dessous de la mèche, donc une simple retest du trigger stoppait la position).
 
 **TPs** : ladder du `PivotSet`, dans la direction du signal. Pour un LONG depuis PDL Daily : `[Daily P, Daily R1, Daily PDH]`. Pour un SHORT depuis PDH Daily : `[Daily P, Daily S1, Daily PDL]`.
 
@@ -95,7 +95,7 @@ Les **6 stratégies** sont indépendantes, chacune implémente l'interface `Stra
 
 **Trigger** : la bougie M5 courante touche la zone dilatée du pivot cassé **depuis le côté de la cassure** (depuis au-dessus si la cassure était LONG, depuis en dessous si SHORT), ET clôture qui confirme la cassure (close au-dessus du pivot pour LONG, en dessous pour SHORT).
 
-**SL** : `pivot_value - 1.10 × atr_dilation` pour LONG (`+1.10 × atr_dilation` pour SHORT). Pareil que S1, on protège contre un tick de bruit qui repique sous le niveau cassé.
+**SL** : Plan 6 update — `cur.low - 0.10 × ATR_M5` pour LONG, `cur.high + 0.10 × ATR_M5` pour SHORT. C'est la mèche de la bougie de confirmation, augmentée d'un buffer ATR_M5 pour éviter les stops sur bruit. Ancien : `pivot ± 1.10 × atr_dilation` (déprécié — pouvait être au-dessus/en-dessous de la mèche, donc une simple retest du trigger stoppait la position).
 
 **TPs** : ladder dans le sens du retest, depuis le pivot suivant après celui cassé.
 
@@ -119,7 +119,7 @@ C'est volontairement plus profond que S1 : S1 capte un rejet « propre » dans l
 
 **Trigger** : exactement les mêmes règles que S1 (long_wick / engulfing / doji), mais le pivot touché doit appartenir à une `ConfluenceZone`.
 
-**SL** : au-delà de la borne extérieure de la `ConfluenceZone` (le `min` de `dilated_low` pour LONG, le `max` de `dilated_high` pour SHORT).
+**SL** : `min(cur.low - 0.10 × ATR_M5, zone.low)` pour LONG (`max(..., zone.high)` pour SHORT). Le bord extérieur de la confluence sert de **plancher** : SL jamais à l'intérieur de la zone.
 
 **TPs** : ladder du membre de plus haute TF de la zone (priorité Monthly > Weekly > Daily > 4H).
 
@@ -129,7 +129,9 @@ C'est volontairement plus profond que S1 : S1 capte un rejet « propre » dans l
 - Pivot Daily uniquement (PDH/R1 pour SHORT, PDL/S1 pour LONG) ;
 - ET la CPR Daily du jour est « narrow » : `cpr_width_D < 0.5 × moyenne(cpr_width_D, last 20 sessions Daily)`.
 
-**Trigger / SL / TPs** : identiques à S1.
+**Trigger / TPs** : identiques à S1.
+
+**SL** : Plan 6 update — `cur.low - 0.10 × ATR_M5` pour LONG, `cur.high + 0.10 × ATR_M5` pour SHORT. C'est la mèche de la bougie de confirmation, augmentée d'un buffer ATR_M5 pour éviter les stops sur bruit. Ancien : `pivot ± 1.10 × atr_dilation` (déprécié — pouvait être au-dessus/en-dessous de la mèche, donc une simple retest du trigger stoppait la position).
 
 **Effet** : tag `sweet_spot` ajouté au signal, priorité maximale dans le formatter Telegram (entête « 💎 SWEET SPOT »).
 
@@ -171,6 +173,27 @@ S2 et S6 :
 - S2 (Breakout Pivot Central) supporte les 3 modes — P existe en 4H/D/W/M.
 - S6 (Sweet Spot) reste **Daily uniquement** (la condition narrow CPR Daily
   est intrinsèquement liée à la TF Daily).
+
+### 3.5 Stack Bias Gate (Plan 6)
+
+Pré-filtre orchestrateur (live/cycle.py + backtest/runner.py) basé sur la position du prix vs les Pivot Points sur Monthly / Weekly / Daily TFs (TREND_X_STRATEGY p.13-15) :
+
+| Score | Bias | Action |
+|---|---|---|
+| Above M+W+D | `strong_buy` | LONG signals pass ; SHORT signals drop |
+| Above 2 of 3 | `buy` | LONG signals pass ; SHORT signals drop |
+| Split (tie) | `neutral` | All signals drop |
+| Below 2 of 3 | `sell` | SHORT signals pass ; LONG signals drop |
+| Below M+W+D | `strong_sell` | SHORT signals pass ; LONG signals drop |
+
+Activable via `Settings.enable_bias_gate` (env `ENABLE_BIAS_GATE`, défaut `true` en live).
+Backtest : `BacktestConfig.bias_gate` (défaut `false` pour backwards compat).
+
+L'ordre des filtres dans le cycle :
+1. Mode (`sym_cfg.modes`)
+2. R/R sur TP1 (`MIN_RR_TP1`)
+3. Stack bias (cette section)
+4. Dedup priorité + fenêtre (couche notif)
 
 ## 4. Architecture
 

@@ -9,8 +9,9 @@ Multi-timeframe pivot scanner that detects trading setups on M5 and notifies via
 **Plan 3 (Live MVP + Telegram) — implemented.**
 **Plan 4 (Backtest V2) — implemented.**
 **Plan 5 (Scalping mode / 4H trigger) — implemented.**
+**Plan 6 (Signal Quality / TREND_X hardening) — implemented.**
 
-Plan 6 (Deployment) — pending.
+Plan 7 (Deployment) — pending.
 
 ## Quick start (Plan 1 demo)
 
@@ -98,19 +99,17 @@ the orchestrator filters by `modes` before persistence and Telegram.
 S6 Sweet Spot is the only strategy locked to a specific mode (Daily/intraday
 — its narrow-CPR-Daily filter is structurally Daily-tied).
 
-## Signal quality filter
+## Signal quality filters
 
-Signals with `TP1 R/R < MIN_RR_TP1` (default 1.5) are dropped at the orchestrator
-layer — they're never persisted, never sent to Telegram. This addresses scalp-mode
-signals where 4H pivots are tight and SL eats most of the risk budget. Override via
-`.env`:
+Three filters compose at the orchestrator layer (live and backtest):
 
-```
-MIN_RR_TP1=1.5   # raise to 2.0 for stricter quality, lower to 1.0 for more flow
-```
+1. **Per-symbol mode filter** — `sym_cfg.modes` in `watchlist.yaml` (e.g. `[intraday, scalp]`)
+2. **R/R quality filter** — `MIN_RR_TP1` (default 1.5)
+3. **Stack bias gate** — `ENABLE_BIAS_GATE=true` blocks counter-trend signals based on price vs Monthly/Weekly/Daily Pivot Points (5-state directional score)
 
-In backtest mode, set `BacktestConfig.min_rr_tp1` (default `None` = no filter, so
-existing baseline backtests still see all signals).
+Disable any of them by setting the relevant env var. The SL is also Plan 6-tightened:
+strategies S1/S3/S5/S6 now place SL at the confirmation candle's wick + small buffer
+instead of a fixed pivot offset, yielding tighter risk and better R/R.
 
 ## Project structure
 
