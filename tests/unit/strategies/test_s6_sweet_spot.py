@@ -81,3 +81,37 @@ def test_s6_skipped_when_no_daily_pivots(base_time, session_ends):
     )
     signals = S6SweetSpot().detect(snap, AgentState(pending_breaks=[]))
     assert signals == []
+
+
+def test_s6_long_sweet_spot_on_weekly_when_weekly_cpr_narrow(base_time, session_ends):
+    """Weekly CPR narrow + hammer at Weekly PDL = swing-mode S6."""
+    pivots_d = {"PDL": 50.0, "P": 60.0, "PDH": 70.0, "S1": 40.0, "R1": 80.0}
+    pivots_w = {"PDL": 100.0, "S1": 95.0, "P": 105.0, "R1": 110.0, "PDH": 115.0}
+    pivots_h4 = {"TC": 106.0, "P": 105.0, "BC": 104.0}
+    bars = [
+        bar(t=base_time - timedelta(minutes=10), o=106.0, h=106.5, lo=105.5, c=106.0),
+        bar(t=base_time - timedelta(minutes=5),  o=106.0, h=106.2, lo=105.0, c=105.5),
+        bar(t=base_time, o=102.0, h=102.7, lo=99.6, c=102.5),  # hammer at Weekly PDL
+    ]
+    snap = make_snapshot(
+        cycle_time=base_time, m5_bars=bars,
+        pivots={"4H": pivots_h4, "D": pivots_d, "W": pivots_w},
+        session_ends=session_ends,
+        cpr_width_d=1.0, cpr_width_avg_20_d=1.0,  # Daily not narrow
+    )
+    # The make_snapshot helper sets Weekly cpr_width/avg to 1.0/1.0 = not narrow by default.
+    # We need to construct Weekly with cpr_width < 0.5×avg. Use model_copy.
+    from agentic_trader.domain.pivots import PivotSet
+    new_w_set = PivotSet(
+        timeframe="W", symbol="VANTAGE:XAUUSD",
+        session_end=session_ends["W"],
+        cpr_width=0.3, cpr_width_avg_20=1.0,  # ratio 0.3 < 0.5 → narrow
+        levels=list(snap.pivots["W"].levels),
+    )
+    snap_with_narrow_w = snap.model_copy(update={
+        "pivots": {**snap.pivots, "W": new_w_set},
+    })
+    signals = S6SweetSpot().detect(snap_with_narrow_w, AgentState(pending_breaks=[]))
+    swing = [s for s in signals if s.mode == "swing" and s.trigger_pivot.timeframe == "W"]
+    assert len(swing) == 1
+    assert "sweet_spot" in swing[0].tags
