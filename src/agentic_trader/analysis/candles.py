@@ -71,3 +71,53 @@ def dominant_wick(bar: Period, side: Side, ratio: float = 2.0) -> bool:
     if lower == 0:
         return upper > 0
     return upper / lower >= ratio
+
+
+def morning_star(
+    prev_prev: Period, prev: Period, cur: Period,
+    *, min_body_ratio: float = 0.5, small_body_ratio: float = 0.3,
+) -> bool:
+    """Bullish 3-bar reversal pattern:
+    bar[-2] big red, bar[-1] small body, bar[0] big green closing above 50% of bar[-2]'s body.
+    """
+    # bar[-2] must be a substantial red candle
+    pp_range = _range(prev_prev)
+    if pp_range == 0 or prev_prev.close >= prev_prev.open:
+        return False
+    if _body(prev_prev) / pp_range < min_body_ratio:
+        return False
+    # bar[-1] must be a small body relative to bar[-2]'s range
+    if _body(prev) / pp_range > small_body_ratio:
+        return False
+    # bar[0] must be a substantial green candle
+    cur_range = _range(cur)
+    if cur_range == 0 or cur.close <= cur.open:
+        return False
+    if _body(cur) / cur_range < min_body_ratio:
+        return False
+    # bar[0]'s close must exceed 50% of bar[-2]'s body
+    half_pp_body = prev_prev.close + 0.5 * (prev_prev.open - prev_prev.close)
+    return cur.close > half_pp_body
+
+
+def evening_star(
+    prev_prev: Period, prev: Period, cur: Period,
+    *, min_body_ratio: float = 0.5, small_body_ratio: float = 0.3,
+) -> bool:
+    """Bearish 3-bar reversal pattern:
+    bar[-2] big green, bar[-1] small body, bar[0] big red closing below 50% of bar[-2]'s body.
+    """
+    pp_range = _range(prev_prev)
+    if pp_range == 0 or prev_prev.close <= prev_prev.open:
+        return False
+    if _body(prev_prev) / pp_range < min_body_ratio:
+        return False
+    if _body(prev) / pp_range > small_body_ratio:
+        return False
+    cur_range = _range(cur)
+    if cur_range == 0 or cur.close >= cur.open:
+        return False
+    if _body(cur) / cur_range < min_body_ratio:
+        return False
+    half_pp_body = prev_prev.open + 0.5 * (prev_prev.close - prev_prev.open)
+    return cur.close < half_pp_body

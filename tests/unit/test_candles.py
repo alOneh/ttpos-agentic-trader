@@ -4,8 +4,10 @@ from agentic_trader.analysis.candles import (
     bearish_engulfing,
     bullish_engulfing,
     dominant_wick,
+    evening_star,
     is_doji,
     long_wick_rejection,
+    morning_star,
 )
 
 
@@ -66,3 +68,52 @@ def test_dominant_wick_lower():
     bar = _bar(10.0, 10.1, 8.0, 9.9)
     assert dominant_wick(bar, side="lower") is True
     assert dominant_wick(bar, side="upper") is False
+
+
+def test_morning_star_classic():
+    # bar[-2]: red 10→5 (body 5, range 5); bar[-1]: tiny doji 5.0→4.9 around 5
+    # bar[0]: green 5→8.5 (body 3.5, range 3.5); 8.5 > 5 + 0.5*(10-5) = 7.5 ✓
+    prev_prev = _bar(10.0, 10.0, 5.0, 5.0)
+    prev = _bar(5.0, 5.2, 4.8, 4.9)
+    cur = _bar(5.0, 8.5, 4.9, 8.5)
+    assert morning_star(prev_prev, prev, cur) is True
+
+
+def test_morning_star_fails_when_close_below_half():
+    # bar[0] closes below 50% of bar[-2]'s body
+    prev_prev = _bar(10.0, 10.0, 5.0, 5.0)
+    prev = _bar(5.0, 5.2, 4.8, 4.9)
+    cur = _bar(5.0, 7.0, 4.9, 6.8)  # close 6.8 < 7.5 → fail
+    assert morning_star(prev_prev, prev, cur) is False
+
+
+def test_morning_star_fails_when_middle_body_too_big():
+    prev_prev = _bar(10.0, 10.0, 5.0, 5.0)
+    # bar[-1] has body 2 (40% of bar[-2]'s range 5) — too big
+    prev = _bar(5.5, 5.5, 3.5, 3.5)
+    cur = _bar(5.0, 8.5, 4.9, 8.5)
+    assert morning_star(prev_prev, prev, cur) is False
+
+
+def test_evening_star_classic():
+    # bar[-2]: green 5→10 (body 5); bar[-1]: small doji ~10; bar[0]: red 10→6.5
+    # 6.5 < 5 + 0.5*(10-5) = 7.5 ✓
+    prev_prev = _bar(5.0, 10.0, 5.0, 10.0)
+    prev = _bar(10.0, 10.2, 9.8, 10.1)
+    cur = _bar(10.0, 10.1, 6.0, 6.5)
+    assert evening_star(prev_prev, prev, cur) is True
+
+
+def test_evening_star_fails_when_close_above_half():
+    prev_prev = _bar(5.0, 10.0, 5.0, 10.0)
+    prev = _bar(10.0, 10.2, 9.8, 10.1)
+    cur = _bar(10.0, 10.1, 7.7, 7.8)  # close 7.8 > 7.5 → fail
+    assert evening_star(prev_prev, prev, cur) is False
+
+
+def test_evening_star_fails_when_first_bar_red():
+    # bar[-2] should be green for evening star; red disqualifies
+    prev_prev = _bar(10.0, 10.0, 5.0, 5.0)  # red
+    prev = _bar(5.0, 5.2, 4.8, 4.9)
+    cur = _bar(5.0, 5.1, 1.0, 1.5)
+    assert evening_star(prev_prev, prev, cur) is False
