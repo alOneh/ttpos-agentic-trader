@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from agentic_trader.analysis.bias import compute_stack_bias
 from agentic_trader.analysis.breaks import detect_breaks
 from agentic_trader.config import Settings, WatchlistConfig
 from agentic_trader.data.cache import PivotsCache
@@ -20,6 +21,12 @@ from agentic_trader.strategies.registry import enabled_for
 
 log = get_logger(__name__)
 BREAK_BODY_MIN_ATR_M5 = 0.50
+
+
+def _bias_allows(direction: str, bias: str) -> bool:
+    if direction == "LONG":
+        return bias in ("strong_buy", "buy")
+    return bias in ("strong_sell", "sell")
 
 
 @dataclass
@@ -96,6 +103,7 @@ async def run_cycle(deps: Deps) -> CycleReport:
     signals: list[Signal] = []
     for symbol, snap in snapshots.items():
         allowed_modes = modes_by_symbol.get(symbol, set())
+        symbol_bias = compute_stack_bias(snap) if deps.settings.enable_bias_gate else None
         for strategy in enabled_for(symbol, deps.config):
             try:
                 emitted = strategy.detect(snap, state)
@@ -107,6 +115,8 @@ async def run_cycle(deps: Deps) -> CycleReport:
                 if sig.mode not in allowed_modes:
                     continue
                 if not sig.r_multiples or sig.r_multiples[0] < deps.settings.min_rr_tp1:
+                    continue
+                if symbol_bias is not None and not _bias_allows(sig.direction, symbol_bias):
                     continue
                 signals.append(sig)
 

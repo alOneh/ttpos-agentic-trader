@@ -160,3 +160,46 @@ async def test_backtest_filters_low_rr_when_min_rr_tp1_set():
     )
     res = await run_backtest(cfg, fetch_ohlcv_fn=AsyncMock(side_effect=fake_fetch))
     assert len(res.trades) == 0, f"unexpected trades despite min_rr_tp1=10: {res.trades}"
+
+
+async def test_backtest_bias_gate_blocks_against_trend():
+    base = 1700000000
+    info = MarketInfo(name="XAUUSD", pricescale=100.0)
+
+    m5 = [
+        Period(time=base + 300 * i, open=50.5, high=50.8, low=50.2, close=50.5, volume=1.0)
+        for i in range(289)
+    ]
+    m5.append(Period(time=base + 300 * 289, open=49.7, high=49.8, low=48.9, close=49.6, volume=1.0))
+    daily = [
+        Period(time=base - 86400 * (29 - i), open=100.0, high=101.0, low=99.0, close=100.0, volume=1.0)
+        for i in range(30)
+    ]
+
+    def fake_fetch(*, symbol, timeframe, n_bars, to=None):
+        if timeframe == "5":
+            return OHLCVResult(symbol=symbol, timeframe="5", info=info, periods=m5)
+        if timeframe == "1D":
+            return OHLCVResult(symbol=symbol, timeframe="1D", info=info, periods=daily)
+        seconds = {"240": 14400, "1W": 7 * 86400, "1M": 30 * 86400}[timeframe]
+        return OHLCVResult(
+            symbol=symbol, timeframe=timeframe, info=info,
+            periods=[
+                Period(
+                    time=base - seconds * (29 - i),
+                    open=100.0, high=101.0, low=99.0, close=100.0, volume=1.0,
+                )
+                for i in range(30)
+            ],
+        )
+
+    cfg = BacktestConfig(
+        symbol="VANTAGE:XAUUSD",
+        from_date=datetime.fromtimestamp(base + 300 * 280, tz=UTC),
+        to_date=datetime.fromtimestamp(base + 300 * 295, tz=UTC),
+        strategies=["S1"],
+        bias_gate=True,
+    )
+    res = await run_backtest(cfg, fetch_ohlcv_fn=AsyncMock(side_effect=fake_fetch))
+    longs = [t for t in res.trades if t.direction == "LONG"]
+    assert longs == [], f"backtest bias_gate failed: {[t.signal_id for t in longs]}"

@@ -83,6 +83,7 @@ async def test_cycle_end_to_end_emits_signals_and_calls_telegram(tmp_path, monke
         db_path=str(tmp_path / "cycle.db"),
         notif_dedup_window_min=30, notif_dedup_within_atr=0.10,
         min_rr_tp1=0.0,  # disable R/R filter — this test covers Telegram dispatch, not R/R
+        enable_bias_gate=False,  # disable bias gate — test pre-dates bias gate feature
     )
     cfg = WatchlistConfig(
         defaults=StrategyDefaults(),
@@ -163,6 +164,7 @@ async def test_cycle_filters_by_per_symbol_modes(tmp_path):
         telegram_bot_token="T", telegram_chat_id="C",
         db_path=str(tmp_path / "modes.db"),
         notif_dedup_window_min=30, notif_dedup_within_atr=0.10,
+        enable_bias_gate=False,  # disable bias gate — test pre-dates bias gate feature
     )
     # Symbol restricted to scalp only — even though strategies emit intraday too,
     # only scalp signals should land in signals_log.
@@ -243,5 +245,71 @@ async def test_cycle_filters_low_rr_signals(tmp_path):
     report = await run_cycle(deps)
     # With min_rr_tp1=10, no signal should pass
     assert report.signals_emitted == 0
+    await notifier.close()
+    await repo.close()
+
+
+async def test_cycle_bias_gate_blocks_against_trend_signals(tmp_path):
+    """Verify enable_bias_gate=True drops LONG signals when price is far below all pivots."""
+    base = 1700000000
+
+    # Synthetic: M5 price around 50, Daily/Weekly/Monthly bars around 100 → bias=strong_sell.
+    # Hammer at price ~50, but stack bias is strong_sell → no LONG signal should survive.
+    def fake_fetch(*, symbol, timeframe, n_bars, client):
+        info = MarketInfo(name=symbol.split(":")[-1], pricescale=100.0)
+        if timeframe == "5":
+            bars = [
+                Period(time=base + 300 * i, open=50.5, high=50.8, low=50.2, close=50.5, volume=1.0)
+                for i in range(289)
+            ]
+            # Hammer at 50: low=48.9, close=49.6
+            bars.append(Period(time=base + 300 * 289, open=49.7, high=49.8, low=48.9, close=49.6, volume=1.0))
+            return OHLCVResult(symbol=symbol, timeframe="5", info=info, periods=bars)
+        seconds = {"240": 14400, "1D": 86400, "1W": 7 * 86400, "1M": 30 * 86400}[timeframe]
+        return OHLCVResult(
+            symbol=symbol, timeframe=timeframe, info=info,
+            periods=[
+                Period(time=base + seconds * i, open=100.0, high=101.0, low=99.0, close=100.0, volume=1.0)
+                for i in range(30)
+            ],
+        )
+
+    fetcher = TVFetcher(client=None, fetch_ohlcv_fn=AsyncMock(side_effect=fake_fetch))
+
+    def telegram_handler(request):
+        return httpx.Response(200, json={"ok": True})
+
+    notifier = TelegramNotifier(
+        token="T", chat_id="C",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(telegram_handler), timeout=2.0),
+    )
+    repo = Repository(db_path=tmp_path / "bias.db")
+    await repo.connect()
+    await repo.init_schema()
+    cache = PivotsCache(repo)
+
+    settings = Settings(
+        telegram_bot_token="T", telegram_chat_id="C",
+        db_path=str(tmp_path / "bias.db"),
+        notif_dedup_window_min=30, notif_dedup_within_atr=0.10,
+        min_rr_tp1=0.0,         # disable R/R filter for this test
+        enable_bias_gate=True,  # the variable under test
+    )
+    cfg = WatchlistConfig(
+        defaults=StrategyDefaults(),
+        watchlist=[SymbolConfig(
+            symbol="VANTAGE:XAUUSD", modes=["intraday"],
+            strategies=["S1", "S2", "S3", "S4", "S5", "S6"],
+        )],
+    )
+    dedup = NotifDedupPolicy(window_min=30, within_atr=0.10)
+    deps = Deps(settings=settings, config=cfg, repo=repo, fetcher=fetcher,
+                cache=cache, notifier=notifier, dedup=dedup)
+
+    report = await run_cycle(deps)
+    saved = await repo.load_signals_since(report.cycle_time)
+    long_signals = [s for s in saved if s.direction == "LONG"]
+    assert long_signals == [], \
+        f"bias gate failed to block counter-trend long: {[s.id for s in long_signals]}"
     await notifier.close()
     await repo.close()

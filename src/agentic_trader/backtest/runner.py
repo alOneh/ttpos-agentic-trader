@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
+from agentic_trader.analysis.bias import compute_stack_bias
 from agentic_trader.backtest.history import SymbolHistory, fetch_history
 from agentic_trader.backtest.metrics import compute_metrics
 from agentic_trader.backtest.pnl import apply_bar
@@ -18,6 +19,12 @@ from agentic_trader.strategies.registry import ALL_STRATEGIES
 log = get_logger(__name__)
 
 
+def _bias_allows(direction: str, bias: str) -> bool:
+    if direction == "LONG":
+        return bias in ("strong_buy", "buy")
+    return bias in ("strong_sell", "sell")
+
+
 @dataclass
 class BacktestConfig:
     symbol: str
@@ -27,6 +34,7 @@ class BacktestConfig:
     modes: list[str] | None = None  # None = all (intraday, swing, scalp)
     partial_take: tuple[float, float, float] = (33.0, 33.0, 34.0)
     min_rr_tp1: float | None = None  # None = no R/R filter; backwards-compatible default
+    bias_gate: bool = False
 
 
 @dataclass
@@ -125,6 +133,7 @@ async def run_backtest(
             snap = build_snapshot_at(history, t)
         except ValueError:
             continue
+        symbol_bias = compute_stack_bias(snap) if config.bias_gate else None
         signals: list[Signal] = []
         for strat in strategies:
             try:
@@ -138,6 +147,8 @@ async def run_backtest(
                 if config.min_rr_tp1 is not None:
                     if not sig.r_multiples or sig.r_multiples[0] < config.min_rr_tp1:
                         continue
+                if symbol_bias is not None and not _bias_allows(sig.direction, symbol_bias):
+                    continue
                 signals.append(sig)
 
         for sig in signals:
