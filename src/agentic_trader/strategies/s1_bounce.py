@@ -8,8 +8,10 @@ from agentic_trader.analysis.candles import (
     bearish_engulfing,
     bullish_engulfing,
     dominant_wick,
+    evening_star,
     is_doji,
     long_wick_rejection,
+    morning_star,
 )
 from agentic_trader.domain.pivots import PivotLevel, PivotSet
 from agentic_trader.domain.signal import Mode, Signal
@@ -45,6 +47,8 @@ def _is_long_rejection(bars: list[Period]) -> bool:
         return True
     if is_doji(cur) and dominant_wick(cur, side="lower"):
         return True
+    if len(bars) >= 3 and morning_star(bars[-3], bars[-2], cur):
+        return True
     return False
 
 
@@ -55,6 +59,8 @@ def _is_short_rejection(bars: list[Period]) -> bool:
     if len(bars) >= 2 and bearish_engulfing(bars[-2], cur):
         return True
     if is_doji(cur) and dominant_wick(cur, side="upper"):
+        return True
+    if len(bars) >= 3 and evening_star(bars[-3], bars[-2], cur):
         return True
     return False
 

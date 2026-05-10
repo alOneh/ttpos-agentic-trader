@@ -179,3 +179,26 @@ def test_s1_scalp_detection_on_4h_pdl(base_time, session_ends):
     assert len(scalp) == 1
     assert scalp[0].trigger_pivot.timeframe == "4H"
     assert scalp[0].trigger_pivot.value == 100.0
+
+
+def test_s1_long_bounce_with_morning_star_confirmation(base_time, session_ends):
+    # PDL=100. Last 3 M5 bars form a morning star — final close=102.5 confirms.
+    # bar[-2]: red 102→97 (body 5, range 5)
+    # bar[-1]: small doji around 97
+    # bar[0]: green 97→102.5 (body 5.5, range 5.5)
+    # 102.5 > 97 + 0.5*(102-97) = 99.5 ✓
+    pivots_d = {"PDL": 100.0, "S1": 95.0, "P": 105.0, "R1": 110.0, "PDH": 115.0}
+    pivots_h4 = {"TC": 106.0, "P": 105.0, "BC": 104.0}
+    bars = [
+        bar(t=base_time - timedelta(minutes=10), o=102.0, h=102.5, lo=97.0, c=97.0),
+        bar(t=base_time - timedelta(minutes=5),  o=97.0, h=97.5, lo=96.5, c=97.1),
+        bar(t=base_time, o=97.0, h=102.6, lo=96.8, c=102.5),
+    ]
+    snap = make_snapshot(
+        cycle_time=base_time, m5_bars=bars,
+        pivots={"4H": pivots_h4, "D": pivots_d},
+        session_ends=session_ends,
+    )
+    signals = S1Bounce().detect(snap, AgentState(pending_breaks=[]))
+    longs = [s for s in signals if s.direction == "LONG" and s.trigger_pivot.tag == "PDL"]
+    assert len(longs) == 1
