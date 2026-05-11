@@ -61,14 +61,16 @@ def build_snapshot_at(
             continue  # not enough history for this TF at simulated time t — skip
         last_closed = window[-1]
         session_end_ts = last_closed.time + _TF_SECONDS[tf]
-        last_20 = window[-21:-1]
-        widths = []
-        for b in last_20:
-            P = (b.high + b.low + b.close) / 3.0
-            BC = (b.high + b.low) / 2.0
+        closed_periods = window[:-1]
+        widths_all = []
+        for p in closed_periods:
+            P = (p.high + p.low + p.close) / 3.0
+            BC = (p.high + p.low) / 2.0
             TC = 2 * P - BC
-            widths.append(abs(TC - BC))
-        cpr_width_avg_20 = sum(widths) / len(widths) if widths else 0.0
+            widths_all.append(abs(TC - BC))
+        cpr_width_history = widths_all[-22:-1]
+        last_20_prior = cpr_width_history[-20:]
+        cpr_width_avg_20 = sum(last_20_prior) / len(last_20_prior) if last_20_prior else 0.0
         df_tf = _df(window)
         atr_tf = atr_fn(df_tf, period=ATR_PERIOD) if len(df_tf) >= ATR_PERIOD + 1 else 0.0
         dilation = dilation_for(pivot_tf=tf, atr_pivot_tf=atr_tf, atr_d=atr_d)
@@ -76,7 +78,9 @@ def build_snapshot_at(
             symbol=history.symbol, timeframe=tf,
             pdh=last_closed.high, pdl=last_closed.low, pdc=last_closed.close,
             session_end=datetime.fromtimestamp(session_end_ts, tz=UTC),
-            cpr_width_avg_20=cpr_width_avg_20, dilation=dilation,
+            cpr_width_avg_20=cpr_width_avg_20,
+            cpr_width_history=cpr_width_history,
+            dilation=dilation,
         )
 
     return MarketSnapshot(

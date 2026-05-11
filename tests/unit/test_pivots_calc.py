@@ -61,3 +61,23 @@ def test_non_degenerate_cpr_width():
     assert by["BC"] == 90.0
     assert round(by["TC"], 2) == 95.33
     assert round(ps.cpr_width, 2) == 5.33
+
+
+def test_compute_pivots_passes_width_history_through():
+    from datetime import UTC, datetime
+
+    from agentic_trader.analysis.pivots_calc import compute_pivots
+
+    history = [1.0, 1.1, 1.2, 1.05, 0.95]
+    ps = compute_pivots(
+        symbol="X",
+        timeframe="D",
+        pdh=110.0,
+        pdl=90.0,
+        pdc=100.0,
+        session_end=datetime(2026, 5, 12, 0, 0, tzinfo=UTC),
+        cpr_width_avg_20=1.0,
+        cpr_width_history=history,
+        dilation=0.0,
+    )
+    assert ps.cpr_width_history == history

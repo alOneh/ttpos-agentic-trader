@@ -122,6 +122,39 @@ async def test_fetch_all_m5_in_parallel():
     assert fake.await_count == 3
 
 
+async def test_get_pivots_populates_cpr_width_history(tmp_path):
+    # Build 30 daily bars with varying H/L/C to produce non-trivial widths.
+    base = 1700000000
+    bars = [
+        Period(
+            time=base + 86400 * i,
+            open=100.0,
+            high=110.0 + i * 0.5,
+            low=90.0 - i * 0.3,
+            close=100.0 + i * 0.1,
+            volume=1.0,
+        )
+        for i in range(30)
+    ]
+    info = MarketInfo(name="XAUUSD", pricescale=100.0)
+    fake = AsyncMock(
+        return_value=OHLCVResult(symbol="VANTAGE:XAUUSD", timeframe="1D", info=info, periods=bars)
+    )
+
+    repo = Repository(db_path=tmp_path / "hist.db")
+    await repo.connect()
+    await repo.init_schema()
+    cache = PivotsCache(repo)
+
+    f = TVFetcher(client=None, fetch_ohlcv_fn=fake)
+    now = datetime.fromtimestamp(base + 86400 * 30, tz=UTC)
+    ps = await f.get_pivots("VANTAGE:XAUUSD", "D", cache=cache, atr_d=20.0, now=now)
+
+    assert len(ps.cpr_width_history) == 21
+    assert all(w >= 0 for w in ps.cpr_width_history)
+    await repo.close()
+
+
 async def test_fetch_all_m5_returns_exception_per_symbol_on_failure():
     def _maybe_fail(*, symbol, timeframe, n_bars, client):
         if symbol == "BAD":

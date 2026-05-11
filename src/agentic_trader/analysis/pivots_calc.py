@@ -14,6 +14,7 @@ def compute_pivots(
     pdc: float,
     session_end: datetime,
     cpr_width_avg_20: float,
+    cpr_width_history: list[float] | None = None,
     dilation: float,
 ) -> PivotSet:
     """Compute the standard pivot set from the previous bar's H/L/C.
@@ -46,5 +47,6 @@ def compute_pivots(
     return PivotSet(
         timeframe=timeframe, symbol=symbol, session_end=session_end,
         cpr_width=abs(tc - bc), cpr_width_avg_20=cpr_width_avg_20,
+        cpr_width_history=cpr_width_history or [],
         levels=levels,
     )

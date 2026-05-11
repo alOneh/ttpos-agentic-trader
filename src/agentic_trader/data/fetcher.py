@@ -83,16 +83,22 @@ class TVFetcher:
         session_end_ts = in_progress.time + _TF_SECONDS[tf]
         session_end = datetime.fromtimestamp(session_end_ts, tz=UTC)
 
-        # CPR width avg over last 20 closed bars.
-        last_20_closed = periods[-22:-2]  # 20 bars
-        widths: list[float] = []
-        for p in last_20_closed:
+        # Closed bars excluding the in-progress one.
+        closed = periods[:-1]
+        widths_all: list[float] = []
+        for p in closed:
             pdh, pdl, pdc = p.high, p.low, p.close
             P = (pdh + pdl + pdc) / 3.0
             BC = (pdh + pdl) / 2.0
             TC = 2 * P - BC
-            widths.append(abs(TC - BC))
-        cpr_width_avg_20 = sum(widths) / len(widths) if widths else 0.0
+            widths_all.append(abs(TC - BC))
+
+        # 21 prior widths for Method 2 stats; falls back gracefully when shorter.
+        cpr_width_history = widths_all[-22:-1]  # exclude the width of last_closed itself
+
+        # Average of the prior 20 (unchanged semantics).
+        last_20_prior = cpr_width_history[-20:]
+        cpr_width_avg_20 = sum(last_20_prior) / len(last_20_prior) if last_20_prior else 0.0
 
         # ATR for this TF (used for dilation), computed over the closed bars.
         df = pd.DataFrame([{"high": p.high, "low": p.low, "close": p.close} for p in periods[:-1]])
@@ -108,6 +114,7 @@ class TVFetcher:
             pdh=last_closed.high, pdl=last_closed.low, pdc=last_closed.close,
             session_end=session_end,
             cpr_width_avg_20=cpr_width_avg_20,
+            cpr_width_history=cpr_width_history,
             dilation=dilation,
         )
         await cache.set(pivot_set)
