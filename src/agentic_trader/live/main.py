@@ -15,6 +15,7 @@ from agentic_trader.config import Settings, WatchlistConfig
 from agentic_trader.data.cache import PivotsCache
 from agentic_trader.data.fetcher import TVFetcher
 from agentic_trader.data.repository import Repository
+from agentic_trader.digest.jobs import DigestDeps
 from agentic_trader.live.cycle import Deps
 from agentic_trader.live.scheduler import setup_scheduler
 from agentic_trader.notify.dedup import NotifDedupPolicy
@@ -56,7 +57,8 @@ async def main() -> None:
     deps = Deps(settings=settings, config=cfg, repo=repo, fetcher=fetcher,
                 cache=cache, notifier=notifier, dedup=dedup)
 
-    scheduler = setup_scheduler(deps)
+    digest_deps = DigestDeps(fetcher=fetcher, cache=cache, notifier=notifier, config=cfg)
+    scheduler = setup_scheduler(deps, digest_deps=digest_deps)
     scheduler.start()
     log.info("scheduler_started", n_symbols=len(cfg.watchlist))
 
