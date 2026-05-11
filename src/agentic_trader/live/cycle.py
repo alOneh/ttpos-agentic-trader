@@ -130,7 +130,14 @@ async def run_cycle(deps: Deps) -> CycleReport:
         signals, recent_notifs=recent, atr_d_by_symbol=atr_d_by_symbol,
     )
 
-    messages = [render(s, pricescale=_pricescale_for(s, snapshots)) for s in to_send]
+    messages = [
+        render(
+            s,
+            pricescale=_pricescale_for(s, snapshots),
+            width_info=_width_info_for(s, snapshots),
+        )
+        for s in to_send
+    ]
     sent_results = await deps.notifier.send_batch(messages)
 
     # Record notif_log
@@ -167,3 +174,10 @@ def _pricescale_for(sig: Signal, snapshots: dict[str, MarketSnapshot]) -> float 
     if snap is None:
         return None
     return snap.market_info.pricescale
+
+
+def _width_info_for(sig: Signal, snapshots: dict[str, MarketSnapshot]):
+    snap = snapshots.get(sig.symbol)
+    if snap is None:
+        return None
+    return snap.cpr_widths.get(sig.trigger_pivot.timeframe)

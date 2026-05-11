@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+from agentic_trader.analysis.cpr_width import WidthInfo
 from agentic_trader.domain.signal import Signal
 
 _TF_LABELS = {
@@ -38,7 +39,12 @@ def _r_multiples(entry: float, stop_loss: float, targets: list[tuple[float, str]
     return [abs(t[0] - entry) / risk for t in targets]
 
 
-def render(signal: Signal, *, pricescale: float | None = None) -> str:
+def render(
+    signal: Signal,
+    *,
+    pricescale: float | None = None,
+    width_info: WidthInfo | None = None,
+) -> str:
     """Render a Signal as a multi-line text block for Telegram (plain text)."""
     decimals = _decimals_for_pricescale(pricescale if pricescale is not None else 100.0)
 
@@ -56,6 +62,9 @@ def render(signal: Signal, *, pricescale: float | None = None) -> str:
         f"🎯 Pivot     : {p.tag} {_TF_LABELS.get(p.timeframe, p.timeframe)} @ {_fmt(p.value, decimals)} "
         f"(zone dilatée {_fmt(p.dilated_low, decimals)}–{_fmt(p.dilated_high, decimals)})"
     )
+    if width_info is not None:
+        stat_label = "—" if width_info.stat_was_fallback else width_info.class_stat
+        pivot_line += f"  · {width_info.class_pct} / {stat_label}"
 
     tag_line = ""
     if signal.tags:

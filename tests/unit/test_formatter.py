@@ -69,3 +69,33 @@ def test_render_target_lines_show_r_multiples():
     # TP1 reward = 17.70 → R/R 2.6
     text = render(_sig())
     assert "2.6" in text or "2.60" in text
+
+
+def test_render_includes_width_tag_when_provided():
+    from agentic_trader.analysis.cpr_width import WidthInfo
+    from agentic_trader.notify.formatter import render
+
+    sig = _sig()
+    info = WidthInfo(pct=0.18, class_pct="narrow", class_stat="moderate", stat_was_fallback=False)
+    text = render(sig, pricescale=100.0, width_info=info)
+    assert "narrow / moderate" in text
+
+
+def test_render_width_tag_fallback_renders_em_dash():
+    from agentic_trader.analysis.cpr_width import WidthInfo
+    from agentic_trader.notify.formatter import render
+
+    sig = _sig()
+    info = WidthInfo(pct=0.18, class_pct="narrow", class_stat="narrow", stat_was_fallback=True)
+    text = render(sig, pricescale=100.0, width_info=info)
+    assert "narrow / —" in text
+
+
+def test_render_without_width_info_omits_tag():
+    from agentic_trader.notify.formatter import render
+
+    sig = _sig()
+    text = render(sig, pricescale=100.0)
+    # The pivot line is the line containing "Pivot" — assert no " / " appears there
+    pivot_line = next(line for line in text.split("\n") if "Pivot" in line)
+    assert " / " not in pivot_line
