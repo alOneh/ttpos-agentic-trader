@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+import pandas as pd
+
+from agentic_trader.analysis.atr import atr as atr_fn
 from agentic_trader.analysis.cpr_width import classify, classify_pct
 from agentic_trader.config import WatchlistConfig
 from agentic_trader.data.cache import PivotsCache
@@ -47,8 +50,13 @@ async def _entry_final(
     deps: DigestDeps, symbol: str, tf: DigestTF, now: datetime
 ) -> DigestEntry | None:
     try:
+        daily_result = await deps.fetcher.fetch_for_pivot_tf(symbol, "D", n_bars=30)
+        df_d = pd.DataFrame(
+            [{"high": p.high, "low": p.low, "close": p.close} for p in daily_result.periods]
+        )
+        atr_d = atr_fn(df_d, period=14) if len(df_d) >= 15 else 0.0
         ps = await deps.fetcher.get_pivots(
-            symbol, tf, cache=deps.cache, atr_d=0.0, now=now
+            symbol, tf, cache=deps.cache, atr_d=atr_d, now=now
         )
     except Exception:
         log.exception("digest_get_pivots_failed", symbol=symbol, tf=tf)

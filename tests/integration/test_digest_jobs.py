@@ -84,6 +84,38 @@ async def test_run_digest_preview_uses_projected_cpr(tmp_path):
     await repo.close()
 
 
+@pytest.mark.asyncio
+async def test_run_digest_final_does_not_poison_cache_with_zero_dilation(tmp_path):
+    """After a Weekly digest, the cached W PivotSet must retain non-zero dilation,
+    so the next trading cycle still has dilated zones around its W pivots."""
+    repo = Repository(str(tmp_path / "agent.db"))
+    await repo.connect()
+    await repo.init_schema()
+    cache = PivotsCache(repo)
+    fetcher = _make_stub_fetcher()
+    notifier = AsyncMock()
+    notifier.send.return_value = True
+
+    cfg = WatchlistConfig(
+        defaults=StrategyDefaults(),
+        watchlist=[SymbolConfig(symbol="X", modes=["intraday"], strategies=["S1"])],
+    )
+    deps = DigestDeps(fetcher=fetcher, cache=cache, notifier=notifier, config=cfg)
+    # The stub fetcher uses base_time=1_700_000_000 (≈2023-11-14); W session_end
+    # is roughly 2023-12-20, so use a "now" well before that expiry.
+    now = datetime(2023, 12, 14, 0, 0, tzinfo=UTC)  # within W session window
+
+    await run_digest_final(deps, tf="W", now=now)
+
+    cached_w = await cache.get("X", "W", now=now)
+    assert cached_w is not None
+    # Every level must have a real dilation buffer.
+    for lvl in cached_w.levels:
+        assert lvl.dilated_low < lvl.value, f"{lvl.tag} has zero lower dilation"
+        assert lvl.dilated_high > lvl.value, f"{lvl.tag} has zero upper dilation"
+    await repo.close()
+
+
 def test_setup_scheduler_registers_seven_digest_jobs(tmp_path):
     """Job-id inspection only — no actual firing."""
     import asyncio
