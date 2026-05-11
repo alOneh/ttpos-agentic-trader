@@ -7,6 +7,7 @@ from tradingview_api.models.ohlcv import Period
 
 from agentic_trader.analysis.atr import atr as atr_fn
 from agentic_trader.analysis.atr import dilation_for
+from agentic_trader.analysis.cpr_width import classify
 from agentic_trader.analysis.pivots_calc import compute_pivots
 from agentic_trader.backtest.history import SymbolHistory
 from agentic_trader.domain.pivots import TF, PivotSet
@@ -82,8 +83,10 @@ def build_snapshot_at(
             dilation=dilation,
         )
 
+    cpr_widths = {tf: classify(ps, ps.cpr_width_history) for tf, ps in pivots.items()}
+
     return MarketSnapshot(
         symbol=history.symbol, cycle_time=t, m5_bars=m5_bars,
-        pivots=pivots, atr_m5=atr_m5, atr_d=atr_d,
+        pivots=pivots, cpr_widths=cpr_widths, atr_m5=atr_m5, atr_d=atr_d,
         market_info=history.info,
     )

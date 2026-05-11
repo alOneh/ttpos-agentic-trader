@@ -94,6 +94,18 @@ def test_build_snapshot_raises_when_no_bars_before_t():
         build_snapshot_at(hist, t)
 
 
+def test_build_snapshot_at_populates_cpr_widths():
+    from agentic_trader.analysis.cpr_width import WidthInfo
+
+    hist = _history()
+    t = datetime.fromtimestamp(1700000000 + 300 * 59, tz=UTC)
+    snap = build_snapshot_at(hist, t)
+    # All 4 TFs should be built (all have 30 bars >= 22)
+    assert set(snap.cpr_widths.keys()) == set(snap.pivots.keys())
+    for tf, info in snap.cpr_widths.items():
+        assert isinstance(info, WidthInfo), f"expected WidthInfo for {tf}, got {type(info)}"
+
+
 def test_cpr_width_history_includes_bar_before_driver():
     """Verify backtest builder yields cpr_width_history aligned with live fetcher semantics.
 

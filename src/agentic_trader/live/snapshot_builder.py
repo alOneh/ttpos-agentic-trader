@@ -5,6 +5,7 @@ from datetime import datetime
 import pandas as pd
 
 from agentic_trader.analysis.atr import atr
+from agentic_trader.analysis.cpr_width import classify
 from agentic_trader.data.cache import PivotsCache
 from agentic_trader.data.fetcher import TVFetcher
 from agentic_trader.domain.pivots import TF
@@ -34,11 +35,16 @@ async def build_snapshot(
         tf_typed: TF = tf  # type: ignore[assignment]
         pivots[tf_typed] = await fetcher.get_pivots(symbol, tf_typed, cache=cache, atr_d=atr_d, now=now)
 
+    cpr_widths = {
+        tf: classify(ps, ps.cpr_width_history) for tf, ps in pivots.items()
+    }
+
     return MarketSnapshot(
         symbol=symbol,
         cycle_time=now,
         m5_bars=m5_result.periods,
         pivots=pivots,
+        cpr_widths=cpr_widths,
         atr_m5=atr_m5,
         atr_d=atr_d,
         market_info=m5_result.info,

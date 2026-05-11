@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from tradingview_api.models.ohlcv import MarketInfo, Period
 
+from agentic_trader.analysis.cpr_width import WidthInfo
 from agentic_trader.domain.pivots import TF, PivotSet
 
 
@@ -15,6 +16,7 @@ class MarketSnapshot(BaseModel):
     cycle_time: datetime
     m5_bars: list[Period]
     pivots: dict[TF, PivotSet]
+    cpr_widths: dict[TF, WidthInfo] = {}
     atr_m5: float
     atr_d: float
     market_info: MarketInfo
