@@ -1,3 +1,4 @@
+import statistics
 from datetime import UTC, datetime
 
 import pytest
@@ -5,7 +6,11 @@ import pytest
 from agentic_trader.analysis.cpr_width import (
     PCT_NARROW_MAX,
     PCT_WIDE_MIN,
+    STAT_WINDOW,
+    WidthInfo,
+    classify,
     classify_pct,
+    classify_stat,
     width_pct,
 )
 from agentic_trader.domain.pivots import PivotLevel, PivotSet
@@ -60,3 +65,55 @@ def test_classify_pct_wide_above_threshold():
 
 def test_classify_pct_wide_boundary_exclusive():
     assert classify_pct(PCT_WIDE_MIN) == "moderate"
+
+
+def test_classify_stat_insufficient_history_returns_none():
+    history = [1.0] * (STAT_WINDOW - 1)
+    assert classify_stat(history, current=1.0) is None
+
+
+def test_classify_stat_narrow_below_mean_minus_sd():
+    history = list(range(1, STAT_WINDOW + 1))  # 1..21, mean=11, sd≈6.06
+    mean = statistics.fmean(history)
+    sd = statistics.stdev(history)
+    assert classify_stat(history, current=mean - sd - 0.01) == "narrow"
+
+
+def test_classify_stat_wide_above_mean_plus_sd():
+    history = list(range(1, STAT_WINDOW + 1))
+    mean = statistics.fmean(history)
+    sd = statistics.stdev(history)
+    assert classify_stat(history, current=mean + sd + 0.01) == "wide"
+
+
+def test_classify_stat_moderate_inside_band():
+    history = list(range(1, STAT_WINDOW + 1))
+    mean = statistics.fmean(history)
+    assert classify_stat(history, current=mean) == "moderate"
+
+
+def test_classify_returns_widthinfo_with_both_classes():
+    ps = _ps(p_value=100.0, bc=99.8, tc=100.2)  # width_pct = 0.4 → moderate
+    history = [0.4] * STAT_WINDOW  # zero variance → sd=0, band degenerates to {0.4}
+    info = classify(ps, history)
+    assert isinstance(info, WidthInfo)
+    assert info.pct == pytest.approx(0.4)
+    assert info.class_pct == "moderate"
+    # Current width is the absolute |TC-BC|=0.4 — equal to mean, inside band.
+    assert info.class_stat == "moderate"
+    assert info.stat_was_fallback is False
+
+
+def test_classify_falls_back_when_history_short():
+    ps = _ps(p_value=100.0, bc=99.8, tc=100.2)  # 0.4 → moderate
+    info = classify(ps, history=[0.4, 0.4])  # only 2 prior widths
+    assert info.stat_was_fallback is True
+    assert info.class_stat == info.class_pct == "moderate"
+
+
+def test_classify_handles_empty_history():
+    ps = _ps(p_value=100.0, bc=99.9, tc=100.1)  # width_pct = 0.2 → narrow
+    info = classify(ps, history=[])
+    assert info.stat_was_fallback is True
+    assert info.class_stat == "narrow"
+    assert info.class_pct == "narrow"
