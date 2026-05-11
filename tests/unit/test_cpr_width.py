@@ -93,14 +93,16 @@ def test_classify_stat_moderate_inside_band():
 
 
 def test_classify_returns_widthinfo_with_both_classes():
-    ps = _ps(p_value=100.0, bc=99.8, tc=100.2)  # width_pct = 0.4 → moderate
-    history = [0.4] * STAT_WINDOW  # zero variance → sd=0, band degenerates to {0.4}
+    # P=100, BC=99.5, TC=100.5 → cpr_width = 1.0 exact, width_pct = 1.0 → wide (Method 1)
+    ps = _ps(p_value=100.0, bc=99.5, tc=100.5)
+    # History with mean ≈ 1.0 and meaningful sd. Current width (1.0) is inside band.
+    history = [0.8, 0.9, 1.0, 1.1, 1.2] * 5  # 25 values; tail 21 mean=1.0, sd≈0.14
+    history = history[-STAT_WINDOW:]           # exactly 21 values
     info = classify(ps, history)
     assert isinstance(info, WidthInfo)
-    assert info.pct == pytest.approx(0.4)
-    assert info.class_pct == "moderate"
-    # Current width is the absolute |TC-BC|=0.4 — equal to mean, inside band.
-    assert info.class_stat == "moderate"
+    assert info.pct == pytest.approx(1.0)
+    assert info.class_pct == "wide"      # 1.0 > PCT_WIDE_MIN (0.50)
+    assert info.class_stat == "moderate"  # inside mean±sd band
     assert info.stat_was_fallback is False
 
 

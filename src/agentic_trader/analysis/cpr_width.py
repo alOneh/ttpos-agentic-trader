@@ -60,8 +60,6 @@ def classify_stat(
     sample = width_history[-window:]
     mean = statistics.fmean(sample)
     sd = statistics.stdev(sample)
-    if sd == 0.0:
-        return "moderate"
     if current < mean - sd:
         return "narrow"
     if current > mean + sd:
@@ -86,7 +84,7 @@ def classify(pivot_set: PivotSet, history: list[float]) -> WidthInfo:
     """
     pct = width_pct(pivot_set)
     pct_class = classify_pct(pct)
-    stat_class = classify_stat(history, current=pct)
+    stat_class = classify_stat(history, current=pivot_set.cpr_width)
     if stat_class is None:
         return WidthInfo(
             pct=pct,
