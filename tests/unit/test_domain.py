@@ -129,3 +129,29 @@ def test_agent_state_find_break(utc_now):
     found = state.find_break("VANTAGE:XAUUSD", "P", "D")
     assert found is not None and found.direction == "LONG"
     assert state.find_break("VANTAGE:XAUUSD", "R1", "D") is None
+
+
+def test_pivotset_cpr_width_history_default_empty():
+    ps = PivotSet(
+        timeframe="D",
+        symbol="X",
+        session_end=datetime(2026, 5, 12, 0, 0, tzinfo=UTC),
+        cpr_width=1.0,
+        cpr_width_avg_20=1.2,
+        levels=[],
+    )
+    assert ps.cpr_width_history == []
+
+
+def test_pivotset_cpr_width_history_accepts_list():
+    history = [0.9, 1.0, 1.1, 1.2, 1.3]
+    ps = PivotSet(
+        timeframe="D",
+        symbol="X",
+        session_end=datetime(2026, 5, 12, 0, 0, tzinfo=UTC),
+        cpr_width=1.0,
+        cpr_width_avg_20=1.1,
+        cpr_width_history=history,
+        levels=[],
+    )
+    assert ps.cpr_width_history == history

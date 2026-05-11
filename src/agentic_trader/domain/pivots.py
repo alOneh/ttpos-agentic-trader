@@ -27,6 +27,7 @@ class PivotSet(BaseModel):
     session_end: datetime
     cpr_width: float
     cpr_width_avg_20: float
+    cpr_width_history: list[float] = []
     levels: list[PivotLevel]
 
     def by_tag(self, tag: str) -> PivotLevel:
