@@ -61,9 +61,8 @@ def build_snapshot_at(
             continue  # not enough history for this TF at simulated time t — skip
         last_closed = window[-1]
         session_end_ts = last_closed.time + _TF_SECONDS[tf]
-        closed_periods = window[:-1]
-        widths_all = []
-        for p in closed_periods:
+        widths_all: list[float] = []
+        for p in window:                         # iterate over FULL window
             P = (p.high + p.low + p.close) / 3.0
             BC = (p.high + p.low) / 2.0
             TC = 2 * P - BC

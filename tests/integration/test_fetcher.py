@@ -123,19 +123,19 @@ async def test_fetch_all_m5_in_parallel():
 
 
 async def test_get_pivots_populates_cpr_width_history(tmp_path):
-    # Build 30 daily bars with varying H/L/C to produce non-trivial widths.
+    # Build 30 bars where each has a non-trivial CPR width.
+    import math
     base = 1700000000
-    bars = [
-        Period(
+    bars = []
+    for i in range(30):
+        # Use sin to vary close relative to (H+L)/2 so |TC - BC| > 0
+        high = 110.0 + i * 0.5
+        low = 90.0 - i * 0.3
+        close = 100.0 + 8.0 * math.sin(i * 0.6)  # swings ±8 around midpoint
+        bars.append(Period(
             time=base + 86400 * i,
-            open=100.0,
-            high=110.0 + i * 0.5,
-            low=90.0 - i * 0.3,
-            close=100.0 + i * 0.1,
-            volume=1.0,
-        )
-        for i in range(30)
-    ]
+            open=close, high=high, low=low, close=close, volume=1.0,
+        ))
     info = MarketInfo(name="XAUUSD", pricescale=100.0)
     fake = AsyncMock(
         return_value=OHLCVResult(symbol="VANTAGE:XAUUSD", timeframe="1D", info=info, periods=bars)
@@ -151,7 +151,10 @@ async def test_get_pivots_populates_cpr_width_history(tmp_path):
     ps = await f.get_pivots("VANTAGE:XAUUSD", "D", cache=cache, atr_d=20.0, now=now)
 
     assert len(ps.cpr_width_history) == 21
-    assert all(w >= 0 for w in ps.cpr_width_history)
+    # All widths must be strictly positive given the non-affine close.
+    assert all(w > 0 for w in ps.cpr_width_history)
+    # The history must vary across the window (not all equal).
+    assert min(ps.cpr_width_history) < max(ps.cpr_width_history)
     await repo.close()
 
 
