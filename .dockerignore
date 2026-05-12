@@ -1,0 +1,47 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets & local runtime data (never bake into image)
+.env
+.env.*
+!.env.example
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Dev-only files
+tests/
+docs/
+Resources/
+backtest_*.json
+backtest_*.csv
+*.log
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Container artifacts
+Dockerfile
+.dockerignore
