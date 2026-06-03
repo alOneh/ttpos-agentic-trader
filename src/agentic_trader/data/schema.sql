@@ -62,3 +62,36 @@ CREATE TABLE IF NOT EXISTS cycle_health (
     signals_notified INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_cycle_health_time ON cycle_health(cycle_time DESC);
+
+CREATE TABLE IF NOT EXISTS touches (
+    symbol TEXT NOT NULL,
+    timeframe TEXT NOT NULL,          -- "D","W","M"
+    tag TEXT NOT NULL,                -- "S1","R2","PDL-S1",…
+    zone_low REAL NOT NULL,
+    zone_high REAL NOT NULL,
+    side TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    bar_time INTEGER NOT NULL,
+    seen_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    PRIMARY KEY (symbol, timeframe, tag, bar_time)
+);
+CREATE INDEX IF NOT EXISTS idx_touches_active ON touches(symbol, expires_at);
+
+CREATE TABLE IF NOT EXISTS scan_alerts (
+    id TEXT PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    tf_count INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    payload_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_scan_alerts_time ON scan_alerts(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS scan_notif_log (
+    alert_id TEXT PRIMARY KEY,
+    sent_at INTEGER NOT NULL,
+    status TEXT NOT NULL,             -- "sent" | "failed" | "suppressed_by_window"
+    error TEXT
+);
