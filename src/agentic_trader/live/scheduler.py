@@ -19,18 +19,20 @@ _FOUR_H_HOURS = (12, 16, 20)
 
 
 def setup_scheduler(deps: Deps, *, digest_deps: DigestDeps | None = None) -> AsyncIOScheduler:
-    """Cron jobs: 5-min trading cycle + 7 digest publications."""
+    """Cron jobs: optional legacy 5-min trading cycle (flag-gated) + 7 digest publications."""
     scheduler = AsyncIOScheduler(timezone=UTC)
-    scheduler.add_job(
-        _cycle_job,
-        trigger="cron",
-        minute="*/5",
-        second=deps.settings.schedule_offset_seconds,
-        id="trading_cycle",
-        max_instances=1,
-        coalesce=True,
-        kwargs={"deps": deps},
-    )
+    if deps.settings.enable_legacy_signals:
+        scheduler.add_job(
+            _cycle_job,
+            trigger="cron",
+            minute="*/5",
+            second=deps.settings.schedule_offset_seconds,
+            id="trading_cycle",
+            max_instances=1,
+            coalesce=True,
+            kwargs={"deps": deps},
+        )
+        log.info("legacy_signals_enabled")
     if digest_deps is not None:
         _register_digest_jobs(scheduler, digest_deps)
     return scheduler

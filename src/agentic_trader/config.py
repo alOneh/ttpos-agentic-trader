@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     schedule_offset_seconds: int = 2
     min_rr_tp1: float = 1.5   # drop signals where TP1 R/R < this threshold
     enable_bias_gate: bool = True
+    enable_legacy_signals: bool = False   # S1-S6 cycle archived; set true to re-enable
 
 
 class StrategyDefaults(BaseModel):

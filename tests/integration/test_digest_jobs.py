@@ -144,7 +144,6 @@ def test_setup_scheduler_registers_seven_digest_jobs(tmp_path):
     scheduler = setup_scheduler(deps, digest_deps=digest_deps)
     ids = {job.id for job in scheduler.get_jobs()}
     expected = {
-        "trading_cycle",
         "digest_4H_final_12", "digest_4H_final_16", "digest_4H_final_20",
         "digest_D_preview", "digest_D_final",
         "digest_W_preview", "digest_W_final",
