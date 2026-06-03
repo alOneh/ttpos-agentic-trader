@@ -47,6 +47,17 @@ def test_no_touch_when_bar_far_from_zone():
     assert events == []
 
 
+def test_blow_through_is_not_a_touch():
+    # a huge candle whose low is far below the support zone blew through it — not a touch
+    bars = [_bar(2500, 95.0, 120.0, 70.0, 115.0)]
+    assert detect_touches(symbol="X", timeframe="D", zones=[SUPPORT],
+                          bars=bars, now=NOW, lookback=3) == []
+    # symmetric for resistance: high far above the band is a blow-through, not a touch
+    bars = [_bar(2600, 100.0, 130.0, 95.0, 125.0)]
+    assert detect_touches(symbol="X", timeframe="D", zones=[RESIST],
+                          bars=bars, now=NOW, lookback=3) == []
+
+
 def test_lookback_limits_to_last_n_bars():
     # touching bar is the oldest; lookback=1 should ignore it
     bars = [

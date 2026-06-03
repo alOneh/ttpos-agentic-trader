@@ -62,6 +62,23 @@ def test_bracket_zones_pdl_s1_and_pdh_r1():
     assert b_short.low == 109.0 and b_short.high == 111.0
 
 
+def test_bracket_span_is_outer_dilated_bounds_when_asymmetric():
+    # PDH=120, PDL=85, PDC=100 → P=101.6667, R1=2P-PDL=118.3333, S1=2P-PDH=83.3333.
+    # dilation=1.0. PDL-S1 bracket spans outer bounds of PDL(84..86) and S1(82.33..84.33)
+    # → low=82.3333, high=86.0.
+    ps = compute_pivots(
+        symbol="TEST:X", timeframe="D",
+        pdh=120.0, pdl=85.0, pdc=100.0,
+        session_end=datetime(2026, 6, 3, tzinfo=UTC),
+        cpr_width_avg_20=2.0, dilation=1.0,
+    )
+    by_tag = {z.tag: z for z in build_zones(ps, current_price=100.0)}
+    bracket = by_tag["PDL-S1"]
+    assert round(bracket.low, 4) == 82.3333
+    assert bracket.high == 86.0
+    assert bracket.side == "support"
+
+
 def test_zone_is_frozen():
     import pytest
     from pydantic import ValidationError
