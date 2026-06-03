@@ -1,0 +1,50 @@
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from agentic_trader.data.repository import Repository
+from agentic_trader.domain.scan import MTZSetup, ScanAlert, Score, band_for
+
+
+@pytest.fixture
+async def repo(tmp_path):
+    r = Repository(db_path=tmp_path / "alerts.db")
+    await r.connect()
+    await r.init_schema()
+    yield r
+    await r.close()
+
+
+def _alert(aid: str, t: datetime) -> ScanAlert:
+    setup = MTZSetup(symbol="X", direction="LONG", zone_low=100.0, zone_high=102.0,
+                     members=[("D", "S1"), ("W", "S1")], tf_count=2, tags=[])
+    sc = Score(total=72, band=band_for(72),
+               breakdown={"align": 20, "cpr": 15, "rr": 15, "reaction": 15, "x": 7})
+    return ScanAlert(id=aid, setup=setup, score=sc,
+                     indicative={"entry": 101.0, "stop": 99.0, "target": 110.0,
+                                 "target_label": "W R1", "rr": 4.5},
+                     bias="strong_buy", cpr_class="narrow", created_at=t)
+
+
+async def test_save_scan_alert_roundtrip_and_idempotent(repo, utc_now):
+    a = _alert("id1", utc_now)
+    await repo.save_scan_alert(a)
+    await repo.save_scan_alert(a)  # INSERT OR IGNORE → no duplicate
+    cur = await repo._db.execute("SELECT COUNT(*) FROM scan_alerts")
+    assert (await cur.fetchone())[0] == 1
+
+
+async def test_recent_scan_notif_ids_window(repo):
+    now = datetime(2026, 6, 3, 14, 0, tzinfo=UTC)
+    await repo.record_scan_notif(alert_id="recent", status="sent",
+                                 sent_at=now - timedelta(minutes=10))
+    await repo.record_scan_notif(alert_id="old", status="sent",
+                                 sent_at=now - timedelta(minutes=120))
+    ids = await repo.recent_scan_notif_ids(window_min=60, now=now)
+    assert ids == {"recent"}
+
+
+async def test_recent_excludes_failed_status(repo):
+    now = datetime(2026, 6, 3, 14, 0, tzinfo=UTC)
+    await repo.record_scan_notif(alert_id="f", status="failed", sent_at=now)
+    assert await repo.recent_scan_notif_ids(window_min=60, now=now) == set()

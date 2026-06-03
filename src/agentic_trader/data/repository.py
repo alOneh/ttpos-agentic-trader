@@ -5,7 +5,7 @@ from pathlib import Path
 
 import aiosqlite
 
-from agentic_trader.domain.scan import TouchEvent
+from agentic_trader.domain.scan import ScanAlert, TouchEvent
 from agentic_trader.domain.signal import Signal
 from agentic_trader.domain.state import AgentState, PendingBreak
 from agentic_trader.observability.logging import get_logger
@@ -160,6 +160,39 @@ class Repository:
         )
         await self._db.commit()
         return cur.rowcount
+
+    # ---- scan alerts + notif log ----
+
+    async def save_scan_alert(self, alert: ScanAlert) -> None:
+        assert self._db is not None
+        await self._db.execute(
+            "INSERT OR IGNORE INTO scan_alerts(id,symbol,direction,score,tf_count,created_at,payload_json) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                alert.id, alert.setup.symbol, alert.setup.direction,
+                alert.score.total, alert.setup.tf_count,
+                int(alert.created_at.timestamp()), alert.model_dump_json(),
+            ),
+        )
+        await self._db.commit()
+
+    async def record_scan_notif(self, *, alert_id: str, status: str, sent_at: datetime,
+                                error: str | None = None) -> None:
+        assert self._db is not None
+        await self._db.execute(
+            "INSERT OR REPLACE INTO scan_notif_log(alert_id,sent_at,status,error) VALUES (?,?,?,?)",
+            (alert_id, int(sent_at.timestamp()), status, error),
+        )
+        await self._db.commit()
+
+    async def recent_scan_notif_ids(self, *, window_min: int, now: datetime) -> set[str]:
+        assert self._db is not None
+        floor = int(now.timestamp()) - window_min * 60
+        cur = await self._db.execute(
+            "SELECT alert_id FROM scan_notif_log WHERE status='sent' AND sent_at >= ?",
+            (floor,),
+        )
+        return {r[0] for r in await cur.fetchall()}
 
     # ---- ohlcv_cache ----
 
