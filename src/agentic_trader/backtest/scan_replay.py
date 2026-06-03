@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict
@@ -66,16 +67,20 @@ def _bars_up_to(bars: list[Period], t_ts: int) -> list[Period]:
 def replay_scan(
     *, history: SymbolHistory, start: datetime, end: datetime,
     min_score: int = 0, horizon_bars: int = 1440, buffer_frac: float = 0.25,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> ReplayResult:
     start_ts, end_ts = int(start.timestamp()), int(end.timestamp())
     m5_all = history.bars["5"]
     timeline = [b for b in m5_all if start_ts <= b.time <= end_ts]
+    total = len(timeline)
 
     store = MemTouchStore()
     last_sent: dict[str, int] = {}     # alert_id → last emit ts (dedup window)
     alerts: list[ReplayAlert] = []
 
-    for bar in timeline:
+    for i, bar in enumerate(timeline):
+        if on_progress and i % 1000 == 0:
+            on_progress(i, total)
         t_ts = bar.time
         t = datetime.fromtimestamp(t_ts, tz=UTC)
         try:

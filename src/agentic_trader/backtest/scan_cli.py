@@ -3,10 +3,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 from datetime import UTC, datetime, timedelta
+
+from tradingview_api.auth import Credentials
+from tradingview_api.client import TradingViewClient
+from tradingview_api.facade import fetch_ohlcv as default_fetch_ohlcv
 
 from agentic_trader.backtest.history import SCAN_REPLAY_TV_KEYS, fetch_history
 from agentic_trader.backtest.scan_replay import ReplayResult, replay_scan
+from agentic_trader.config import Settings
 
 
 def _write_json(path: str, result: ReplayResult) -> None:
@@ -27,16 +33,48 @@ def summarize_text(result: ReplayResult) -> str:
     return "\n".join(lines)
 
 
+def _progress(done: int, total: int) -> None:
+    print(f"  replay {done}/{total} ticks…", file=sys.stderr, flush=True)
+
+
 async def _run(args: argparse.Namespace) -> None:
     now = datetime.now(UTC)
     end = datetime.fromisoformat(args.to).replace(tzinfo=UTC) if args.to else now
     start = (datetime.fromisoformat(args.from_).replace(tzinfo=UTC) if args.from_
              else end - timedelta(days=args.months * 30))
-    history = await fetch_history(symbol=args.symbol, to=end + timedelta(days=1),
-                                  tv_keys=SCAN_REPLAY_TV_KEYS)
+
+    # Authenticated client (from .env TV_SESSIONID*) for deep history; anonymous if absent.
+    settings = Settings()
+    creds = Credentials(
+        sessionid=settings.tv_sessionid or None,
+        sessionid_sign=settings.tv_sessionid_sign or None,
+    )
+    print(f"TV auth: anonymous={creds.is_anonymous}", file=sys.stderr)
+    client = TradingViewClient(credentials=creds)
+    await client.connect()
+
+    async def authed_fetch(*, symbol, timeframe, n_bars, to=None):
+        return await default_fetch_ohlcv(
+            symbol=symbol, timeframe=timeframe, n_bars=n_bars, to=to, client=client,
+        )
+
+    # Enough bars to cover the requested window (M5 + H1 are window-sized).
+    window_s = int((end - start).total_seconds())
+    overrides = {"5": window_s // 300 + 100, "60": window_s // 3600 + 100}
+
+    try:
+        history = await fetch_history(
+            symbol=args.symbol, to=end + timedelta(days=1), tv_keys=SCAN_REPLAY_TV_KEYS,
+            n_bars_overrides=overrides, fetch_ohlcv_fn=authed_fetch,
+        )
+    finally:
+        await client.close()
+
+    m5n = len(history.bars.get("5", []))
+    print(f"fetched M5 bars: {m5n}", file=sys.stderr)
     result = replay_scan(history=history, start=start, end=end,
                          min_score=args.min_score, horizon_bars=args.horizon_bars,
-                         buffer_frac=args.buffer_frac)
+                         buffer_frac=args.buffer_frac, on_progress=_progress)
     print(summarize_text(result))
     if args.output:
         _write_json(args.output, result)
