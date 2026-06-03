@@ -159,16 +159,23 @@ async def run_scan(deps: ScanDeps, *, trigger_tf: TF, now: datetime) -> int:
             _log.exception("scan_symbol_failed", symbol=symbol, trigger_tf=trigger_tf)
             continue
 
-        to_send, _suppressed = deps.dedup.filter(alerts, recent_ids=recent_ids)
+        to_send, suppressed = deps.dedup.filter(alerts, recent_ids=recent_ids)
+        if suppressed:
+            _log.debug("scan_alerts_suppressed", symbol=symbol, count=len(suppressed))
         for a in alerts:
             await deps.repo.save_scan_alert(a)
+        # Per-alert isolation: a Telegram failure on one alert must not skip the
+        # remaining alerts or the rest of the watchlist.
         for a in to_send:
-            text = render_scan_alert(a, pricescale=snapshot.market_info.pricescale)
-            ok = await deps.notifier.send(text)
-            await deps.repo.record_scan_notif(
-                alert_id=a.id, status="sent" if ok else "failed", sent_at=now,
-            )
-            if ok:
-                total_sent += 1
-                recent_ids.add(a.id)  # within-pass dedup across symbols
+            try:
+                text = render_scan_alert(a, pricescale=snapshot.market_info.pricescale)
+                ok = await deps.notifier.send(text)
+                await deps.repo.record_scan_notif(
+                    alert_id=a.id, status="sent" if ok else "failed", sent_at=now,
+                )
+                if ok:
+                    total_sent += 1
+                    recent_ids.add(a.id)  # within-pass dedup across symbols
+            except Exception:
+                _log.exception("scan_notify_failed", symbol=symbol, alert_id=a.id)
     return total_sent

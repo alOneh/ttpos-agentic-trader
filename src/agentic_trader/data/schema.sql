@@ -90,9 +90,13 @@ CREATE TABLE IF NOT EXISTS scan_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_scan_alerts_time ON scan_alerts(created_at DESC);
 
+-- One row per alert id (latest notification wins, by design — dedup is id-based;
+-- the full setup audit lives in scan_alerts.payload_json). Suppressed alerts are
+-- not recorded here (logged at debug instead) to avoid overwriting a prior 'sent'.
 CREATE TABLE IF NOT EXISTS scan_notif_log (
     alert_id TEXT PRIMARY KEY,
     sent_at INTEGER NOT NULL,
-    status TEXT NOT NULL,             -- "sent" | "failed" | "suppressed_by_window"
+    status TEXT NOT NULL,             -- "sent" | "failed"
     error TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_scan_notif_sent_at ON scan_notif_log(sent_at, status);
