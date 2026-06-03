@@ -68,7 +68,9 @@ Le **type** (support/résistance) du niveau détermine le **biais** du setup. `P
 |---|---|---|---|
 | `ScannerUnit("D")` | 5 min (`:00:02/:05:02/…`) | Daily | M5 (`n=50`) |
 | `ScannerUnit("W")` | 1 h | Weekly | H1 |
-| `ScannerUnit("M")` | 12 h | Monthly | 12H |
+| `ScannerUnit("M")` | 12 h | Monthly | Daily* |
+
+\* **Implémentation** : la cadence Monthly tourne 2×/jour mais détecte les touches sur des **bougies Daily**, pas 12H — TradingView ne sert pas la résolution `"720"` (12H) pour nos symboles (timeout). Daily est le bon analogue d'exécution pour des zones Monthly (Daily/Monthly ≈ 1/30, cohérent avec M5/Daily et H1/Weekly). Le 12H reste la granularité du *layout de capture* (Plan 5).
 
 Chaque `ScannerUnit(tf)` :
 1. Récupère le `PivotSet` de **sa** TF depuis le **cache** (calculé une fois/session — cf. §7).
