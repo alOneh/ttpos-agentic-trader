@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from tradingview_api.models.ohlcv import Period
 
@@ -12,15 +13,27 @@ from agentic_trader.analysis.candles import (
     is_doji,
     long_wick_rejection,
 )
+from agentic_trader.config import Settings
+from agentic_trader.data.cache import PivotsCache
+from agentic_trader.data.fetcher import TVFetcher
+from agentic_trader.data.repository import Repository
 from agentic_trader.domain.scan import TF, MTZSetup, ScanAlert, TouchEvent
 from agentic_trader.domain.snapshot import MarketSnapshot
-from agentic_trader.scanner.dedup import scan_alert_id
+from agentic_trader.live.snapshot_builder import build_snapshot
+from agentic_trader.notify.scan_formatter import render_scan_alert
+from agentic_trader.observability.logging import get_logger
+from agentic_trader.scanner.dedup import ScanDedupPolicy, scan_alert_id
 from agentic_trader.scanner.mtz import aggregate_mtz
 from agentic_trader.scanner.scoring import compute_indicative, next_target, score_setup
 from agentic_trader.scanner.touch import detect_touches
 from agentic_trader.scanner.zones import build_zones
 
+_log = get_logger(__name__)
+
 TF_RANK = {"D": 1, "W": 2, "M": 3}
+
+# trigger TF → (TV bar code, touch TTL seconds)
+_SCAN_BARS = {"D": ("5", 15 * 60), "W": ("60", 90 * 60), "M": ("720", 13 * 3600)}
 
 
 def detect_reaction(bars: list[Period], direction: str) -> bool:
@@ -98,3 +111,64 @@ def build_alerts(
             )
         )
     return alerts
+
+
+@dataclass
+class ScanDeps:
+    settings: Settings
+    repo: Repository
+    fetcher: TVFetcher
+    cache: PivotsCache
+    notifier: object              # has async send(text)->bool
+    dedup: ScanDedupPolicy
+    symbols: list[str]
+
+
+async def run_scan(deps: ScanDeps, *, trigger_tf: TF, now: datetime) -> int:
+    """One scan pass for `trigger_tf` across all symbols. Returns alerts sent."""
+    bar_code, ttl = _SCAN_BARS[trigger_tf]
+    recent_ids = await deps.repo.recent_scan_notif_ids(
+        window_min=deps.settings.scan_dedup_window_min, now=now,
+    )
+    total_sent = 0
+    for symbol in deps.symbols:
+        try:
+            snapshot = await build_snapshot(
+                fetcher=deps.fetcher, cache=deps.cache, symbol=symbol, now=now,
+            )
+            if trigger_tf == "D":
+                scan_bars = snapshot.m5_bars
+            else:
+                res = await deps.fetcher.fetch_bars(symbol, bar_code, n_bars=50)
+                scan_bars = sorted(res.periods, key=lambda p: p.time)
+            touches = scan_symbol_tf(
+                snapshot=snapshot, scan_tf=trigger_tf, scan_bars=scan_bars,
+                lookback=deps.settings.scan_touch_lookback_bars, now=now,
+            )
+            if touches:
+                await deps.repo.upsert_touches(
+                    touches, expires_at=now + timedelta(seconds=ttl),
+                )
+            active = await deps.repo.load_active_touches(symbol, now=now)
+            alerts = build_alerts(
+                symbol=symbol, active_touches=active, snapshot=snapshot,
+                min_tf=2, min_score=deps.settings.scan_min_score,
+                buffer_frac=deps.settings.scan_buffer_frac,
+            )
+        except Exception:
+            _log.exception("scan_symbol_failed", symbol=symbol, trigger_tf=trigger_tf)
+            continue
+
+        to_send, _suppressed = deps.dedup.filter(alerts, recent_ids=recent_ids)
+        for a in alerts:
+            await deps.repo.save_scan_alert(a)
+        for a in to_send:
+            text = render_scan_alert(a, pricescale=snapshot.market_info.pricescale)
+            ok = await deps.notifier.send(text)
+            await deps.repo.record_scan_notif(
+                alert_id=a.id, status="sent" if ok else "failed", sent_at=now,
+            )
+            if ok:
+                total_sent += 1
+                recent_ids.add(a.id)  # within-pass dedup across symbols
+    return total_sent

@@ -16,11 +16,12 @@ from agentic_trader.data.cache import PivotsCache
 from agentic_trader.data.fetcher import TVFetcher
 from agentic_trader.data.repository import Repository
 from agentic_trader.digest.jobs import DigestDeps
-from agentic_trader.live.cycle import Deps
-from agentic_trader.live.scheduler import setup_scheduler
-from agentic_trader.notify.dedup import NotifDedupPolicy
+from agentic_trader.live.scan_scheduler import setup_scan_scheduler
+from agentic_trader.live.scheduler import _register_digest_jobs
 from agentic_trader.notify.telegram import TelegramNotifier
 from agentic_trader.observability.logging import configure_logging, get_logger
+from agentic_trader.scanner.dedup import ScanDedupPolicy
+from agentic_trader.scanner.engine import ScanDeps
 
 
 async def main() -> None:
@@ -49,18 +50,18 @@ async def main() -> None:
     fetcher = TVFetcher(client)
     cache = PivotsCache(repo)
     notifier = TelegramNotifier(token=settings.telegram_bot_token, chat_id=settings.telegram_chat_id)
-    dedup = NotifDedupPolicy(
-        window_min=settings.notif_dedup_window_min,
-        within_atr=settings.notif_dedup_within_atr,
-    )
 
-    deps = Deps(settings=settings, config=cfg, repo=repo, fetcher=fetcher,
-                cache=cache, notifier=notifier, dedup=dedup)
+    scan_deps = ScanDeps(
+        settings=settings, repo=repo, fetcher=fetcher, cache=cache,
+        notifier=notifier, dedup=ScanDedupPolicy(),
+        symbols=[sc.symbol for sc in cfg.watchlist],
+    )
+    scheduler = setup_scan_scheduler(scan_deps)
 
     digest_deps = DigestDeps(fetcher=fetcher, cache=cache, notifier=notifier, config=cfg)
-    scheduler = setup_scheduler(deps, digest_deps=digest_deps)
+    _register_digest_jobs(scheduler, digest_deps)
     scheduler.start()
-    log.info("scheduler_started", n_symbols=len(cfg.watchlist))
+    log.info("scanner_started", n_symbols=len(cfg.watchlist))
 
     stop_event = asyncio.Event()
     loop = asyncio.get_event_loop()

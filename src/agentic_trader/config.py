@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     min_rr_tp1: float = 1.5   # drop signals where TP1 R/R < this threshold
     enable_bias_gate: bool = True
     enable_legacy_signals: bool = False   # S1-S6 cycle archived; set true to re-enable
+    scan_min_score: int = 55
+    scan_dedup_window_min: int = 60
+    scan_touch_lookback_bars: int = 3
+    scan_buffer_frac: float = 0.25
 
 
 class StrategyDefaults(BaseModel):
