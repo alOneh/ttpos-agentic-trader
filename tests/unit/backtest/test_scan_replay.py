@@ -52,3 +52,14 @@ async def test_replay_runs_and_attaches_followthrough():
         assert a.followthrough.outcome in ("TARGET", "STOP", "OPEN")
         assert "rr" in a.indicative
         assert a.tf_count >= 2
+
+
+async def test_replay_h1_base_runs_without_m5():
+    # H1-resolution replay: drives the timeline by H1 bars and must not require M5.
+    hist = _history()
+    del hist.bars["5"]  # prove the H1 path never touches the M5 series
+    start = datetime.fromtimestamp(0, tz=UTC)
+    end = datetime.fromtimestamp(30 * 3600, tz=UTC)
+    result = replay_scan(history=hist, start=start, end=end,
+                         min_score=0, horizon_bars=10, buffer_frac=0.25, base_key="60")
+    assert result.summary["n_alerts"] == len(result.alerts)

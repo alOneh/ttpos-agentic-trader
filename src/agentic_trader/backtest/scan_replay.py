@@ -14,8 +14,9 @@ from agentic_trader.domain.scan import TouchEvent
 from agentic_trader.scanner.dedup import scan_alert_id
 from agentic_trader.scanner.engine import build_alerts, scan_symbol_tf
 
-# trigger TF → (history TV key for scan bars, touch TTL seconds)
-_CADENCE = {"D": ("5", 15 * 60), "W": ("60", 90 * 60), "M": ("1D", 13 * 3600)}
+# Scan-bars source per higher cadence (D uses the base execution series directly).
+_SCAN_KEY = {"W": "60", "M": "1D"}
+_BASE_INTERVAL_S = {"5": 300, "60": 3600}
 _DEDUP_WINDOW_S = 60 * 60
 _SCAN_BAR_LOOKBACK = 50
 
@@ -67,12 +68,16 @@ def _bars_up_to(bars: list[Period], t_ts: int) -> list[Period]:
 def replay_scan(
     *, history: SymbolHistory, start: datetime, end: datetime,
     min_score: int = 0, horizon_bars: int = 1440, buffer_frac: float = 0.25,
-    on_progress: Callable[[int, int], None] | None = None,
+    base_key: str = "5", on_progress: Callable[[int, int], None] | None = None,
 ) -> ReplayResult:
     start_ts, end_ts = int(start.timestamp()), int(end.timestamp())
-    m5_all = history.bars["5"]
-    timeline = [b for b in m5_all if start_ts <= b.time <= end_ts]
+    base_all = history.bars[base_key]
+    timeline = [b for b in base_all if start_ts <= b.time <= end_ts]
     total = len(timeline)
+
+    base_interval = _BASE_INTERVAL_S.get(base_key, 300)
+    # TTLs sized so touches persist across the relevant cadence gap (base-aware).
+    ttls = {"D": 3 * base_interval, "W": max(90 * 60, 2 * base_interval), "M": 13 * 3600}
 
     store = MemTouchStore()
     last_sent: dict[str, int] = {}     # alert_id → last emit ts (dedup window)
@@ -84,7 +89,7 @@ def replay_scan(
         t_ts = bar.time
         t = datetime.fromtimestamp(t_ts, tz=UTC)
         try:
-            snapshot = build_snapshot_at(history, t)
+            snapshot = build_snapshot_at(history, t, base_key=base_key)
         except ValueError:
             continue
 
@@ -98,13 +103,12 @@ def replay_scan(
         for tf in cadences:
             if tf not in snapshot.pivots:
                 continue
-            tv_key, ttl = _CADENCE[tf]
             scan_bars = (snapshot.m5_bars if tf == "D"
-                         else _bars_up_to(history.bars[tv_key], t_ts)[-_SCAN_BAR_LOOKBACK:])
+                         else _bars_up_to(history.bars[_SCAN_KEY[tf]], t_ts)[-_SCAN_BAR_LOOKBACK:])
             touches = scan_symbol_tf(snapshot=snapshot, scan_tf=tf, scan_bars=scan_bars,
                                      lookback=3, now=t)
             if touches:
-                store.upsert(touches, expires_at=t + timedelta(seconds=ttl))
+                store.upsert(touches, expires_at=t + timedelta(seconds=ttls[tf]))
 
         active = store.load_active(t)
         built = build_alerts(symbol=history.symbol, active_touches=active, snapshot=snapshot,
@@ -114,7 +118,7 @@ def replay_scan(
             if t_ts - last_sent.get(aid, -_DEDUP_WINDOW_S - 1) < _DEDUP_WINDOW_S:
                 continue
             last_sent[aid] = t_ts
-            future = [b for b in m5_all if b.time > t_ts]
+            future = [b for b in base_all if b.time > t_ts]
             ft = simulate_followthrough(
                 direction=sa.setup.direction, entry=sa.indicative["entry"],
                 stop=sa.indicative["stop"], target=sa.indicative["target"],

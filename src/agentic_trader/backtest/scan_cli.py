@@ -58,9 +58,12 @@ async def _run(args: argparse.Namespace) -> None:
             symbol=symbol, timeframe=timeframe, n_bars=n_bars, to=to, client=client,
         )
 
-    # Enough bars to cover the requested window (M5 + H1 are window-sized).
+    base_key = "60" if args.timeframe == "h1" else "5"
+    # Enough bars to cover the requested window (base series is window-sized).
     window_s = int((end - start).total_seconds())
     overrides = {"5": window_s // 300 + 100, "60": window_s // 3600 + 100}
+    # Default follow-through horizon: ~5 trading days in the chosen base TF.
+    horizon = args.horizon_bars if args.horizon_bars else (120 if base_key == "60" else 1440)
 
     try:
         history = await fetch_history(
@@ -70,11 +73,10 @@ async def _run(args: argparse.Namespace) -> None:
     finally:
         await client.close()
 
-    m5n = len(history.bars.get("5", []))
-    print(f"fetched M5 bars: {m5n}", file=sys.stderr)
+    print(f"fetched base={base_key} bars: {len(history.bars.get(base_key, []))}", file=sys.stderr)
     result = replay_scan(history=history, start=start, end=end,
-                         min_score=args.min_score, horizon_bars=args.horizon_bars,
-                         buffer_frac=args.buffer_frac, on_progress=_progress)
+                         min_score=args.min_score, horizon_bars=horizon,
+                         buffer_frac=args.buffer_frac, base_key=base_key, on_progress=_progress)
     print(summarize_text(result))
     if args.output:
         _write_json(args.output, result)
@@ -87,8 +89,11 @@ def main() -> None:
     p.add_argument("--months", type=int, default=3)
     p.add_argument("--from", dest="from_", default=None)
     p.add_argument("--to", default=None)
+    p.add_argument("--timeframe", choices=("m5", "h1"), default="m5",
+                   help="base execution TF: m5 (faithful, ~1mo on TV) or h1 (coarser, months)")
     p.add_argument("--min-score", dest="min_score", type=int, default=0)
-    p.add_argument("--horizon-bars", dest="horizon_bars", type=int, default=1440)
+    p.add_argument("--horizon-bars", dest="horizon_bars", type=int, default=0,
+                   help="follow-through horizon in base bars (0 = auto: 1440 m5 / 120 h1)")
     p.add_argument("--buffer-frac", dest="buffer_frac", type=float, default=0.25)
     p.add_argument("--output", default=None)
     asyncio.run(_run(p.parse_args()))

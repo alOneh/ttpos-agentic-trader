@@ -34,18 +34,23 @@ def build_snapshot_at(
     t: datetime,
     *,
     m5_lookback: int = M5_LOOKBACK_DEFAULT,
+    base_key: str = "5",
 ) -> MarketSnapshot:
     """Build a MarketSnapshot reflecting state at time t using pre-fetched history.
 
     All bars are filtered to time <= t (no look-ahead bias). The runner is
     responsible for pre-fetching enough history (≥22 bars per higher TF) so
     that pivot sets can be computed at any backtest tick.
+
+    ``base_key`` selects the execution series stored in ``snapshot.m5_bars`` (and
+    used for ``atr_m5`` / stack bias). Defaults to M5 ("5"); the H1-resolution
+    replay passes "60" since TradingView only serves ~1 month of M5 history.
     """
     t_ts = int(t.timestamp())
 
-    m5_window = _bars_up_to(history.m5(), t_ts)
+    m5_window = _bars_up_to(history.bars[base_key], t_ts)
     if not m5_window:
-        raise ValueError(f"no M5 bars before {t.isoformat()} for {history.symbol}")
+        raise ValueError(f"no {base_key} bars before {t.isoformat()} for {history.symbol}")
     m5_bars = m5_window[-m5_lookback:]
 
     df_m5 = _df(m5_bars)
