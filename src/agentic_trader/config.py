@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     scan_dedup_window_min: int = 60
     scan_touch_lookback_bars: int = 3
     scan_buffer_frac: float = 0.25
+    capture_enabled: bool = False
+    capture_dir: str = "./data/captures"
+    capture_max_age_s: int = 600
 
 
 class StrategyDefaults(BaseModel):

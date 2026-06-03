@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from tradingview_api.models.ohlcv import Period
@@ -20,6 +20,7 @@ from agentic_trader.data.repository import Repository
 from agentic_trader.domain.scan import TF, MTZSetup, ScanAlert, TouchEvent
 from agentic_trader.domain.snapshot import MarketSnapshot
 from agentic_trader.live.snapshot_builder import build_snapshot
+from agentic_trader.notify.capture import ChartCapturer, NullCapturer
 from agentic_trader.notify.scan_formatter import render_scan_alert
 from agentic_trader.observability.logging import get_logger
 from agentic_trader.scanner.dedup import ScanDedupPolicy, scan_alert_id
@@ -123,9 +124,10 @@ class ScanDeps:
     repo: Repository
     fetcher: TVFetcher
     cache: PivotsCache
-    notifier: object              # has async send(text)->bool
+    notifier: object              # has async send(text)->bool and send_photo(...)
     dedup: ScanDedupPolicy
     symbols: list[str]
+    capturer: ChartCapturer = field(default_factory=NullCapturer)
 
 
 async def run_scan(deps: ScanDeps, *, trigger_tf: TF, now: datetime) -> int:
@@ -173,7 +175,15 @@ async def run_scan(deps: ScanDeps, *, trigger_tf: TF, now: datetime) -> int:
         for a in to_send:
             try:
                 text = render_scan_alert(a, pricescale=snapshot.market_info.pricescale)
-                ok = await deps.notifier.send(text)
+                image = None
+                try:
+                    image = await deps.capturer.capture(symbol)
+                except Exception:
+                    _log.exception("capture_failed", symbol=symbol)
+                if image:
+                    ok = await deps.notifier.send_photo(caption=text, image_path=image)
+                else:
+                    ok = await deps.notifier.send(text)
                 await deps.repo.record_scan_notif(
                     alert_id=a.id, status="sent" if ok else "failed", sent_at=now,
                 )

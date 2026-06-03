@@ -109,6 +109,52 @@ def _fake_fetch_monthly():
     return fake_fetch
 
 
+class _RecordingNotifier(_FakeNotifier):
+    def __init__(self):
+        super().__init__()
+        self.photos: list[tuple[str, str]] = []
+
+    async def send_photo(self, *, caption: str, image_path: str) -> bool:
+        self.photos.append((caption, image_path))
+        return True
+
+
+class _StubCapturer:
+    def __init__(self, path):
+        self._path = path
+
+    async def capture(self, symbol):
+        return self._path
+
+
+async def test_run_scan_attaches_capture_when_available(repo, tmp_path):
+    img = tmp_path / "XAUUSD.png"
+    img.write_bytes(b"png")
+    notifier = _RecordingNotifier()
+    await _seed_weekly_touch(repo)
+    deps = _deps(repo, notifier)
+    deps.capturer = _StubCapturer(str(img))
+    sent = await run_scan(deps, trigger_tf="D", now=NOW)
+    assert sent >= 1
+    assert notifier.photos and notifier.photos[0][1] == str(img)
+    assert notifier.sent == []  # used send_photo, not text send
+
+
+async def test_run_scan_falls_back_to_text_when_capture_raises(repo):
+    class _BoomCapturer:
+        async def capture(self, symbol):
+            raise RuntimeError("cdp down")
+
+    notifier = _RecordingNotifier()
+    await _seed_weekly_touch(repo)
+    deps = _deps(repo, notifier)
+    deps.capturer = _BoomCapturer()
+    sent = await run_scan(deps, trigger_tf="D", now=NOW)
+    assert sent >= 1
+    assert notifier.sent  # fell back to text
+    assert notifier.photos == []
+
+
 async def test_run_scan_monthly_uses_daily_bars(repo):
     # The Monthly cadence fetches Daily bars (TV does not serve 12H). A Daily wick
     # into the Monthly S1 zone + a pre-seeded Weekly S1 touch → cross-TF MTZ alert.
