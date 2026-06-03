@@ -32,8 +32,12 @@ _log = get_logger(__name__)
 
 TF_RANK = {"D": 1, "W": 2, "M": 3}
 
-# trigger TF → (TV bar code, touch TTL seconds)
-_SCAN_BARS = {"D": ("5", 15 * 60), "W": ("60", 90 * 60), "M": ("720", 13 * 3600)}
+# trigger TF → (TV bar code for touch candles, touch TTL seconds).
+# Monthly uses Daily candles, not 12H: TradingView does not serve "720" (12H) for
+# our symbols (it times out), and Daily is the right execution granularity for
+# monthly-scale zones (Daily/Monthly ≈ 1/30, mirroring M5/Daily and H1/Weekly).
+# The Monthly cadence (scheduler firing twice daily) is unchanged.
+_SCAN_BARS = {"D": ("5", 15 * 60), "W": ("60", 90 * 60), "M": ("D", 13 * 3600)}
 
 
 def detect_reaction(bars: list[Period], direction: str) -> bool:
