@@ -81,3 +81,23 @@ def test_compute_pivots_passes_width_history_through():
         dilation=0.0,
     )
     assert ps.cpr_width_history == history
+
+
+def test_r4_s4_computed():
+    # From the textbook example: PDH=110, PDL=90, PDC=100
+    # R1=110, R2=120, R3=130 → R4 = R3 + (R2 - R1) = 130 + 10 = 140
+    # S1=90,  S2=80,  S3=70  → S4 = S3 - (S1 - S2) = 70 - 10 = 60
+    ps = compute_pivots(
+        symbol="TEST:X", timeframe="D",
+        pdh=110.0, pdl=90.0, pdc=100.0,
+        session_end=datetime(2026, 5, 5, tzinfo=UTC),
+        cpr_width_avg_20=2.0,
+        dilation=0.5,
+    )
+    by = {lv.tag: lv.value for lv in ps.levels}
+    assert by["R4"] == 140.0
+    assert by["S4"] == 60.0
+    # dilation still applied uniformly to the new levels
+    r4 = next(lv for lv in ps.levels if lv.tag == "R4")
+    assert r4.dilated_low == 139.5
+    assert r4.dilated_high == 140.5
