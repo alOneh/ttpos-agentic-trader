@@ -41,6 +41,10 @@ class TVFetcher:
     async def fetch_m5(self, symbol: str, *, n_bars: int = 50) -> OHLCVResult:
         return await self._fetch(symbol=symbol, timeframe="5", n_bars=n_bars, client=self._client)
 
+    async def fetch_bars(self, symbol: str, tv_code: str, *, n_bars: int = 50) -> OHLCVResult:
+        """Fetch bars for an arbitrary TradingView timeframe code (e.g. '5','60','720')."""
+        return await self._fetch(symbol=symbol, timeframe=tv_code, n_bars=n_bars, client=self._client)
+
     async def fetch_all_m5(
         self,
         symbols: list[str],
