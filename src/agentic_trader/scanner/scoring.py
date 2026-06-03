@@ -5,6 +5,8 @@ from agentic_trader.domain.pivots import PivotSet
 from agentic_trader.domain.scan import Direction, MTZSetup, Score, band_for
 
 _CPR_POINTS = {"narrow": 15, "moderate": 7, "wide": -10}
+# CPR boundaries are context, not profit targets (D7) — never used as a `next_target`.
+_SKIP_TARGET_TAGS = {"BC", "TC"}
 
 
 def alignment_points(direction: Direction, bias: str) -> int:
@@ -67,12 +69,16 @@ def next_target(
 ) -> tuple[float, str] | None:
     """Nearest pivot value strictly beyond `beyond_price` in the trade direction.
 
-    Returns (price, "<TF> <tag>") or None when no pivot lies beyond.
+    Returns (price, "<TF> <tag>") or None when no pivot lies beyond. CPR components
+    (BC/TC) are context-only (D7) and excluded as targets. On a distance tie, the
+    first level in PivotSet order wins (P, R1-R4, S1-S4, PDH, PDL) — i.e. a named
+    R/S level is preferred over the PDH/PDL label.
     """
+    candidates = [lv for lv in pivot_set.levels if lv.tag not in _SKIP_TARGET_TAGS]
     if direction == "LONG":
-        cands = [lv for lv in pivot_set.levels if lv.value > beyond_price]
+        cands = [lv for lv in candidates if lv.value > beyond_price]
     else:
-        cands = [lv for lv in pivot_set.levels if lv.value < beyond_price]
+        cands = [lv for lv in candidates if lv.value < beyond_price]
     if not cands:
         return None
     best = min(cands, key=lambda lv: abs(lv.value - beyond_price))

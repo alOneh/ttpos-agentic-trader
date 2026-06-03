@@ -12,6 +12,9 @@ def aggregate_mtz(touches: list[TouchEvent], *, min_tf: int = 2) -> list[MTZSetu
     spanning >= `min_tf` distinct timeframes are returned. A cluster is tagged
     `bracket_reversal` when it contains a bracket touch and spans >= 2 TFs (D9).
     """
+    symbols = {t.symbol for t in touches}
+    if len(symbols) > 1:
+        raise ValueError(f"aggregate_mtz requires single-symbol input; got {symbols}")
     setups: list[MTZSetup] = []
     for direction in ("LONG", "SHORT"):
         members = [t for t in touches if t.direction == direction]
@@ -49,7 +52,7 @@ def _emit(cluster: list[TouchEvent], direction: str, min_tf: int,
             direction=direction,
             zone_low=min(t.zone_low for t in cluster),
             zone_high=max(t.zone_high for t in cluster),
-            members=sorted((t.timeframe, t.tag) for t in cluster),
+            members=sorted({(t.timeframe, t.tag) for t in cluster}),
             tf_count=len(tfs),
             tags=tags,
         )

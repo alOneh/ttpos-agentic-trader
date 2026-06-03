@@ -29,6 +29,20 @@ def test_next_target_short_picks_nearest_pivot_below():
     assert tgt[1] == "W S1"
 
 
+def test_next_target_skips_cpr_bc_tc():
+    # Non-degenerate: PDH=100, PDL=80, PDC=98 → P=92.6667, BC=90, TC=95.3333.
+    # For LONG beyond 89.0, BC=90 is the nearest level, but BC/TC are context-only,
+    # so the target must skip to P=92.6667.
+    ps = compute_pivots(
+        symbol="X", timeframe="W", pdh=100.0, pdl=80.0, pdc=98.0,
+        session_end=datetime(2026, 6, 3, tzinfo=UTC), cpr_width_avg_20=2.0, dilation=0.0,
+    )
+    tgt = next_target(ps, direction="LONG", beyond_price=89.0)
+    assert tgt is not None
+    assert tgt[1] == "W P"
+    assert round(tgt[0], 4) == 92.6667
+
+
 def test_next_target_none_when_no_pivot_beyond():
     tgt = next_target(_pivots(), direction="LONG", beyond_price=10_000.0)
     assert tgt is None

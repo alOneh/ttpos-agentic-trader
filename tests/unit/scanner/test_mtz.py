@@ -72,3 +72,31 @@ def test_no_bracket_reversal_tag_without_bracket():
     touches = [_t("D", "S1", 100.0, 102.0), _t("W", "S1", 101.0, 103.0)]
     setups = aggregate_mtz(touches, min_tf=2)
     assert setups[0].tags == []
+
+
+def test_mixed_symbol_input_raises():
+    import pytest
+    t1 = _t("D", "S1", 100.0, 102.0)
+    t2 = TouchEvent(
+        symbol="Y", timeframe="W", zone_kind="level", tag="S1",
+        zone_low=101.0, zone_high=103.0, side="support", direction="LONG",
+        bar_time=NOW, seen_at=NOW,
+    )
+    with pytest.raises(ValueError, match="single-symbol"):
+        aggregate_mtz([t1, t2], min_tf=2)
+
+
+def test_members_dedupe_same_tf_tag_across_bars():
+    later = datetime(2026, 6, 3, 14, 40, tzinfo=UTC)
+    touches = [
+        _t("D", "S1", 100.0, 102.0),
+        # same (tf, tag) touched on a later bar → must not appear twice in members
+        TouchEvent(symbol="X", timeframe="D", zone_kind="level", tag="S1",
+                   zone_low=100.5, zone_high=102.5, side="support", direction="LONG",
+                   bar_time=later, seen_at=later),
+        _t("W", "S1", 101.0, 103.0),
+    ]
+    setups = aggregate_mtz(touches, min_tf=2)
+    assert len(setups) == 1
+    assert setups[0].members == [("D", "S1"), ("W", "S1")]
+    assert setups[0].tf_count == 2
