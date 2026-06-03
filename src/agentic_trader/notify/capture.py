@@ -25,7 +25,11 @@ def _newest_match(directory: str, token: str, max_age_s: int) -> str | None:
     now = time.time()
     best: tuple[float, str] | None = None
     for name in os.listdir(directory):
-        if not name.endswith(".png") or token not in name:
+        # MCP names files "<SYMBOL>_<ts>.png"; require the token at the start
+        # followed by a delimiter so e.g. "XAUUSD" never matches "XAUUSDT_...".
+        if not name.endswith(".png"):
+            continue
+        if not (name.startswith(token + "_") or name.startswith(token + ".")):
             continue
         path = os.path.join(directory, name)
         try:

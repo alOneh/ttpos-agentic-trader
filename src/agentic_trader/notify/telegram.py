@@ -11,7 +11,8 @@ log = get_logger(__name__)
 
 
 def _read_image(path: str) -> bytes | None:
-    """Read image bytes if the file exists (sync; keeps blocking I/O out of async)."""
+    """Read image bytes if the file exists. Sync helper (keeps the file read out of
+    the async function body); the directory is tiny so the blocking cost is negligible."""
     if not os.path.isfile(path):
         return None
     try:
@@ -83,8 +84,11 @@ class TelegramNotifier:
         return False
 
     async def send_photo(self, *, caption: str, image_path: str) -> bool:
-        """sendPhoto with a caption. Returns False (no raise) if the file is missing
-        or the upload fails — capture is best-effort and must never break a scan."""
+        """sendPhoto with a caption. Returns False (never raises) if the file is missing
+        or the upload fails — capture is best-effort and must never break a scan.
+
+        Unlike `send()`, this makes a single attempt (no 429/5xx retry): a failed photo
+        simply falls back to the text alert at the call site."""
         data_bytes = _read_image(image_path)
         if data_bytes is None:
             log.warning("telegram_photo_missing_file", path=image_path)
@@ -95,7 +99,7 @@ class TelegramNotifier:
             resp = await self._client.post(
                 url, data=data, files={"photo": ("chart.png", data_bytes, "image/png")}
             )
-        except httpx.HTTPError as e:
+        except Exception as e:
             log.warning("telegram_photo_error", error=str(e))
             return False
         if resp.status_code == 200:

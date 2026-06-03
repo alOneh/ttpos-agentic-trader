@@ -11,8 +11,7 @@ notifies Telegram. See `docs/superpowers/specs/2026-06-03-mtz-scanner-design.md`
 **Plan 2 (Touch detection) — implemented.** Zones (levels + brackets), touch detection, TouchStore.
 **Plan 3 (MTZ aggregation & scoring) — implemented.** Cross-TF clustering, workbook scoring, indicative RR.
 **Plan 4 (Engine, scheduler & notification) — implemented.** `run_scan`, 3-cadence scheduler, dedup, Telegram alerts.
-
-Plan 5 (best-effort 3-TF TradingView capture) — pending.
+**Plan 5 (best-effort 3-TF chart capture) — implemented.** `ChartCapturer` (Null/File), `send_photo`; alerts attach a screenshot when available, else text. Default headless = NullCapturer. Set `CAPTURE_ENABLED=true` + drop `<SYMBOL>_<ts>.png` into `CAPTURE_DIR` (via the TradingView MCP) to attach 3-TF captures.
 
 ### Run the scanner
 
