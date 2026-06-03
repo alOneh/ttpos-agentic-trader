@@ -101,3 +101,26 @@ def test_r4_s4_computed():
     r4 = next(lv for lv in ps.levels if lv.tag == "R4")
     assert r4.dilated_low == 139.5
     assert r4.dilated_high == 140.5
+    s4 = next(lv for lv in ps.levels if lv.tag == "S4")
+    assert s4.dilated_low == 59.5
+    assert s4.dilated_high == 60.5
+
+
+def test_r4_s4_use_workbook_spacing_formula_not_canonical():
+    # R4/S4 use the concepts-workbook spacing-extrapolation formula
+    # (R4 = R3 + (R2 - R1), S4 = S3 - (S1 - S2)), NOT the canonical floor-pivot
+    # R4 = 3P + PDH - 3PDL. They differ on non-degenerate inputs; this test
+    # locks in the workbook formula so it is not "corrected" later.
+    # PDH=100, PDL=80, PDC=98 → workbook R4=132.6667 (canonical would be 138.0).
+    ps = compute_pivots(
+        symbol="TEST:X", timeframe="D",
+        pdh=100.0, pdl=80.0, pdc=98.0,
+        session_end=datetime(2026, 5, 5, tzinfo=UTC),
+        cpr_width_avg_20=4.0,
+        dilation=0.0,
+    )
+    by = {lv.tag: lv.value for lv in ps.levels}
+    assert round(by["R4"], 4) == 132.6667
+    assert round(by["S4"], 4) == 52.6667
+    # Guard: NOT the canonical value.
+    assert round(by["R4"], 1) != 138.0
