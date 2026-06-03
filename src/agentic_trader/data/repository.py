@@ -5,6 +5,7 @@ from pathlib import Path
 
 import aiosqlite
 
+from agentic_trader.domain.scan import TouchEvent
 from agentic_trader.domain.signal import Signal
 from agentic_trader.domain.state import AgentState, PendingBreak
 from agentic_trader.observability.logging import get_logger
@@ -107,6 +108,58 @@ class Repository:
             for r in rows
         ]
         return AgentState(pending_breaks=breaks)
+
+    # ---- touches (scanner) ----
+
+    async def upsert_touches(self, events: list[TouchEvent], *, expires_at: datetime) -> int:
+        """Insert-or-replace touches; all events share one expiry (end of N bars of the TF)."""
+        if not events:
+            return 0
+        assert self._db is not None
+        exp = int(expires_at.timestamp())
+        rows = [
+            (
+                e.symbol, e.timeframe, e.zone_kind, e.tag,
+                e.zone_low, e.zone_high, e.side, e.direction,
+                int(e.bar_time.timestamp()), int(e.seen_at.timestamp()), exp,
+            )
+            for e in events
+        ]
+        await self._db.executemany(
+            "INSERT OR REPLACE INTO touches(symbol,timeframe,zone_kind,tag,zone_low,"
+            "zone_high,side,direction,bar_time,seen_at,expires_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            rows,
+        )
+        await self._db.commit()
+        return len(rows)
+
+    async def load_active_touches(self, symbol: str, *, now: datetime) -> list[TouchEvent]:
+        assert self._db is not None
+        cur = await self._db.execute(
+            "SELECT symbol,timeframe,zone_kind,tag,zone_low,zone_high,side,direction,"
+            "bar_time,seen_at FROM touches WHERE symbol=? AND expires_at > ?",
+            (symbol, int(now.timestamp())),
+        )
+        rows = await cur.fetchall()
+        return [
+            TouchEvent(
+                symbol=r[0], timeframe=r[1], zone_kind=r[2], tag=r[3],
+                zone_low=r[4], zone_high=r[5], side=r[6], direction=r[7],
+                bar_time=datetime.fromtimestamp(r[8], tz=UTC),
+                seen_at=datetime.fromtimestamp(r[9], tz=UTC),
+            )
+            for r in rows
+        ]
+
+    async def expire_touches(self, *, now: datetime) -> int:
+        """Physically delete touches whose expiry has passed (housekeeping)."""
+        assert self._db is not None
+        cur = await self._db.execute(
+            "DELETE FROM touches WHERE expires_at <= ?", (int(now.timestamp()),)
+        )
+        await self._db.commit()
+        return cur.rowcount
 
     # ---- ohlcv_cache ----
 
