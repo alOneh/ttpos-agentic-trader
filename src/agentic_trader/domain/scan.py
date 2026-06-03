@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 # Scanner timeframes only — intentionally excludes "4H" (cf. domain.pivots.TF).
 # The MTZ scanner operates on Daily/Weekly/Monthly pivots exclusively.
@@ -62,6 +62,15 @@ class Score(BaseModel):
     total: int
     band: Band
     breakdown: dict[str, int]
+
+    @model_validator(mode="after")
+    def _band_matches_total(self) -> Score:
+        expected = band_for(self.total)
+        if self.band != expected:
+            raise ValueError(
+                f"band {self.band!r} inconsistent with total {self.total} (expected {expected!r})"
+            )
+        return self
 
 
 class ScanAlert(BaseModel):

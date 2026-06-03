@@ -55,6 +55,12 @@ def test_score_breakdown_and_band():
     assert sum(sc.breakdown.values()) == 85
 
 
+def test_score_rejects_band_inconsistent_with_total():
+    # band must equal band_for(total); 85 → "excellent", so "low" is rejected.
+    with pytest.raises(ValidationError):
+        Score(total=85, band="low", breakdown={})
+
+
 def test_scan_alert_construction():
     setup = MTZSetup(
         symbol="VANTAGE:XAUUSD", direction="LONG", zone_low=2410.0, zone_high=2416.5,

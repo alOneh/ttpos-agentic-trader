@@ -66,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_cycle_health_time ON cycle_health(cycle_time DESC
 CREATE TABLE IF NOT EXISTS touches (
     symbol TEXT NOT NULL,
     timeframe TEXT NOT NULL,          -- "D","W","M"
+    zone_kind TEXT NOT NULL,          -- "level" | "bracket"
     tag TEXT NOT NULL,                -- "S1","R2","PDL-S1",…
     zone_low REAL NOT NULL,
     zone_high REAL NOT NULL,
