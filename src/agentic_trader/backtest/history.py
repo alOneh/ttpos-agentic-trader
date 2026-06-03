@@ -13,13 +13,16 @@ from typing import Protocol
 from tradingview_api.facade import fetch_ohlcv as default_fetch_ohlcv
 from tradingview_api.models.ohlcv import MarketInfo, OHLCVResult, Period
 
-# TV timeframe keys we need
+# TV timeframe keys the legacy backtest runner needs (default).
 TV_KEYS = ("5", "240", "1D", "1W", "1M")
+# The MTZ scan replay additionally needs H1 for the Weekly cadence.
+SCAN_REPLAY_TV_KEYS = ("5", "60", "240", "1D", "1W", "1M")
 
 # n_bars to request per TV TF. M5 over a 30-day window = ~8640 bars; the wheel
 # will paginate internally if TV's per-request cap (typically 5000) is hit.
 DEFAULT_N_BARS = {
     "5":  10000,  # ~35 days of M5
+    "60": 2000,   # ~83 days of H1 (Weekly scan cadence)
     "240": 1000,  # ~166 days of 4H
     "1D":  500,   # ~1.5 years of D
     "1W":  100,   # ~2 years of W
@@ -49,18 +52,20 @@ async def fetch_history(
     to: datetime,
     fetch_ohlcv_fn: FetchOhlcvFn | None = None,
     n_bars_overrides: dict[str, int] | None = None,
+    tv_keys: tuple[str, ...] = TV_KEYS,
 ) -> SymbolHistory:
     """Fetch one batch per TV timeframe ending at ``to``.
 
     Returned bars are sorted ascending by time. Caller chooses ``to`` =
-    end_date + 1 bar interval (so ``to`` is exclusive).
+    end_date + 1 bar interval (so ``to`` is exclusive). Pass ``tv_keys`` to
+    request a different set (e.g. ``SCAN_REPLAY_TV_KEYS`` to include H1).
     """
     fn = fetch_ohlcv_fn or _default_fetch
     n_bars_map = {**DEFAULT_N_BARS, **(n_bars_overrides or {})}
     bars: dict[str, list[Period]] = {}
     info: MarketInfo | None = None
     to_ts = int(to.timestamp())
-    for tv_key in TV_KEYS:
+    for tv_key in tv_keys:
         result = await fn(symbol=symbol, timeframe=tv_key, n_bars=n_bars_map[tv_key], to=to_ts)
         bars[tv_key] = sorted(result.periods, key=lambda p: p.time)
         if info is None:
