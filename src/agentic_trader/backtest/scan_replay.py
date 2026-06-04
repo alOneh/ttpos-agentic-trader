@@ -107,6 +107,7 @@ def replay_scan(
             ft = simulate_followthrough(
                 direction=sa.setup.direction, entry=ind["entry"], stop=ind["stop"],
                 targets=targets, future_bars=future, horizon_bars=horizon_bars,
+                fill_window_bars=horizon_bars,   # entry is a limit order (realistic fill)
             )
             alerts.append(ReplayAlert(
                 time=t, direction=sa.setup.direction,
@@ -130,10 +131,12 @@ def _summarize(alerts: list[ReplayAlert]) -> dict:
     by_month: dict[str, int] = defaultdict(int)
     per_target: dict[str, Counter] = defaultdict(Counter)   # name → Counter(outcome)
     mfe_sum = mae_sum = 0.0
+    n_filled = 0
     for a in alerts:
         by_band[a.band] += 1
         by_dir[a.direction] += 1
         by_month[a.time.strftime("%Y-%m")] += 1
+        n_filled += a.followthrough.filled
         for name, oc in a.followthrough.outcomes.items():
             per_target[name][oc] += 1
         mfe_sum += a.followthrough.mfe_r
@@ -148,6 +151,8 @@ def _summarize(alerts: list[ReplayAlert]) -> dict:
         }
     return {
         "n_alerts": n,
+        "n_filled": n_filled,
+        "fill_rate": (n_filled / n) if n else None,
         "by_band": dict(by_band), "by_direction": dict(by_dir), "by_month": dict(by_month),
         "targets": targets,
         "avg_mfe_r": (mfe_sum / n) if n else None,

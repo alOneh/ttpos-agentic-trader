@@ -62,3 +62,32 @@ def test_zero_risk_gives_zero_r():
     ft = simulate_followthrough(direction="LONG", entry=100.0, stop=100.0,
                                 targets={"htf": 110.0}, future_bars=bars, horizon_bars=10)
     assert ft.mfe_r == 0.0 and ft.mae_r == 0.0
+
+
+def test_no_fill_when_limit_never_reached():
+    # LONG limit at 100, but price stays above (low never ≤ 100) → NO_FILL
+    bars = [_bar(1, 105, 101), _bar(2, 108, 103)]
+    ft = simulate_followthrough(direction="LONG", entry=100.0, stop=95.0,
+                                targets={"htf": 110.0}, future_bars=bars,
+                                horizon_bars=10, fill_window_bars=10)
+    assert ft.filled is False
+    assert ft.outcomes == {"htf": "NO_FILL"}
+
+
+def test_fill_then_target_from_fill_bar():
+    # bar1 doesn't reach entry (low 101); bar2 fills (low 100); bar3 hits target 110
+    bars = [_bar(1, 105, 101), _bar(2, 102, 100), _bar(3, 111, 104)]
+    ft = simulate_followthrough(direction="LONG", entry=100.0, stop=95.0,
+                                targets={"htf": 110.0}, future_bars=bars,
+                                horizon_bars=10, fill_window_bars=10)
+    assert ft.filled is True
+    assert ft.outcomes == {"htf": "TARGET"}
+
+
+def test_fill_window_expiry_marks_no_fill():
+    # entry reached only at bar 3, but fill_window is 2 → NO_FILL
+    bars = [_bar(1, 105, 101), _bar(2, 105, 101), _bar(3, 102, 99)]
+    ft = simulate_followthrough(direction="LONG", entry=100.0, stop=95.0,
+                                targets={"htf": 110.0}, future_bars=bars,
+                                horizon_bars=10, fill_window_bars=2)
+    assert ft.filled is False and ft.outcomes == {"htf": "NO_FILL"}

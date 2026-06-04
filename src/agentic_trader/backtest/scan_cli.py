@@ -26,6 +26,7 @@ def summarize_text(result: ReplayResult) -> str:
         f"MTZ scan replay — {c['symbol']}  {c['start']} → {c['end']}  (min_score={c['min_score']})",
         f"alerts: n_alerts={s['n_alerts']}  by_direction={s['by_direction']}  by_band={s['by_band']}",
         f"by_month={s['by_month']}",
+        f"fill: n_filled={s['n_filled']}  fill_rate={s['fill_rate']}",
     ]
     for name, t in s["targets"].items():
         lines.append(
