@@ -40,7 +40,7 @@ class StrategyDefaults(BaseModel):
 
     modes: list[str] = ["intraday", "swing"]
     strategies: list[str] = ["S1", "S2", "S3", "S4", "S5", "S6"]
-    atr_dilation_mult: float = 0.15
+    atr_dilation_mult: float = 0.07
     atr_dilation_cap_d_mult: float = 0.50
     confluence_threshold_atr_d: float = 0.30
     narrow_cpr_threshold: float = 0.50

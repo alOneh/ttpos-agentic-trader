@@ -19,7 +19,7 @@ def test_watchlist_yaml_parsing(tmp_path):
 defaults:
   modes: [intraday, swing]
   strategies: [S1, S2, S3, S4, S5, S6]
-  atr_dilation_mult: 0.15
+  atr_dilation_mult: 0.07
   atr_dilation_cap_d_mult: 0.50
   confluence_threshold_atr_d: 0.30
   narrow_cpr_threshold: 0.50
@@ -41,4 +41,4 @@ watchlist:
     assert cfg.watchlist[0].strategies == ["S1", "S2", "S3", "S4", "S5", "S6"]
     # Override applied
     assert cfg.watchlist[1].strategies == ["S1", "S3"]
-    assert cfg.defaults.atr_dilation_mult == 0.15
+    assert cfg.defaults.atr_dilation_mult == 0.07
