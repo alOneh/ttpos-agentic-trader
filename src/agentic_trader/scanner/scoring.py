@@ -88,18 +88,18 @@ def next_target(
 def compute_indicative(setup: MTZSetup, *, htf_pivot_set: PivotSet, risk: float) -> dict:
     """Tight-risk indicative levels with two targets (Scanner v2 §5).
 
-    Entry at the reaction edge of the zone, stop one `risk` beyond it (risk is an
-    ATR-based distance, independent of the MTZ zone width):
-      LONG  → entry=zone_low,  stop=entry - risk
-      SHORT → entry=zone_high, stop=entry + risk
+    Entry at the FIRST-CONTACT edge of the zone (where price reaches the level and
+    reacts), stop one `risk` beyond it (ATR-based, independent of zone width):
+      LONG  (support):    price falls onto the zone TOP  → entry=zone_high, stop=entry - risk
+      SHORT (resistance): price rises onto the zone BOTTOM → entry=zone_low,  stop=entry + risk
     Targets: (A) next higher-TF pivot beyond entry; (B) 2R = entry ± 2·risk.
     """
     if setup.direction == "LONG":
-        entry = setup.zone_low
+        entry = setup.zone_high
         stop = entry - risk
         target_2r = entry + 2 * risk
     else:
-        entry = setup.zone_high
+        entry = setup.zone_low
         stop = entry + risk
         target_2r = entry - 2 * risk
     tgt = next_target(htf_pivot_set, direction=setup.direction, beyond_price=entry)

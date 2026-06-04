@@ -53,13 +53,13 @@ def test_compute_indicative_long_tight_risk_dual_target():
     setup = MTZSetup(symbol="X", direction="LONG", zone_low=90.0, zone_high=110.0,
                      members=[("D", "S1"), ("W", "S1")], tf_count=2, tags=[])
     ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=5.0)
-    assert ind["entry"] == 90.0           # reaction edge (support)
-    assert ind["stop"] == 85.0            # entry - risk
+    assert ind["entry"] == 110.0          # first-contact edge: top of support
+    assert ind["stop"] == 105.0           # entry - risk
     assert ind["risk"] == 5.0
-    assert ind["target_2r"] == 100.0      # entry + 2*risk
+    assert ind["target_2r"] == 120.0      # entry + 2*risk
     assert ind["rr_2r"] == 2.0
-    # next HTF pivot above 90 is W P = 100 → rr_htf = 10/5 = 2.0
-    assert ind["target_htf"] == 100.0 and ind["target_htf_label"] == "W P"
+    # next HTF pivot above 110 is W R2 = 120 → rr_htf = 10/5 = 2.0
+    assert ind["target_htf"] == 120.0 and ind["target_htf_label"] == "W R2"
     assert ind["rr_htf"] == 2.0
 
 
@@ -67,11 +67,11 @@ def test_compute_indicative_short_tight_risk():
     setup = MTZSetup(symbol="X", direction="SHORT", zone_low=90.0, zone_high=110.0,
                      members=[("D", "R1"), ("W", "R1")], tf_count=2, tags=[])
     ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=5.0)
-    assert ind["entry"] == 110.0          # reaction edge (resistance)
-    assert ind["stop"] == 115.0           # entry + risk
-    assert ind["target_2r"] == 100.0      # entry - 2*risk
-    # next HTF pivot below 110 is W P = 100
-    assert ind["target_htf"] == 100.0 and ind["rr_htf"] == 2.0
+    assert ind["entry"] == 90.0           # first-contact edge: bottom of resistance
+    assert ind["stop"] == 95.0            # entry + risk
+    assert ind["target_2r"] == 80.0       # entry - 2*risk
+    # next HTF pivot below 90 is W S2 = 80
+    assert ind["target_htf"] == 80.0 and ind["rr_htf"] == 2.0
 
 
 def test_compute_indicative_zero_risk():
