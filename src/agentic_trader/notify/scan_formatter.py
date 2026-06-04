@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import math
+from zoneinfo import ZoneInfo
 
 from agentic_trader.domain.scan import ScanAlert
 
 _DIR_EMOJI = {"LONG": "🔵", "SHORT": "🔴"}
+# Telegram messages show local time for readability; internal data stays UTC.
+DISPLAY_TZ = ZoneInfo("Europe/Paris")
 
 
 def _decimals(pricescale: float | None) -> int:
@@ -25,8 +28,10 @@ def render_scan_alert(alert: ScanAlert, *, pricescale: float | None = None) -> s
            f"   (score {alert.score.total} / {alert.score.band})"
     members = "\n".join(f"   • {tf} {tag}" for tf, tag in s.members)
     ind = alert.indicative
+    when = alert.created_at.astimezone(DISPLAY_TZ).strftime("%d/%m %H:%M")
     lines = [
         head,
+        f"🕐 {when} (Paris)",
         "━━━━━━━━━━━━━━━━━━",
         f"🧲 Zone : {_fmt(s.zone_low, d)} – {_fmt(s.zone_high, d)}  ({s.tf_count} TF)",
         members,

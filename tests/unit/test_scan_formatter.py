@@ -28,6 +28,8 @@ def test_render_contains_core_fields():
     assert "7.5" in text  # rr_htf
     assert "2R" in text   # dual target
     assert "strong_buy" in text
+    # created_at 14:35 UTC → 16:35 Europe/Paris (CEST)
+    assert "16:35 (Paris)" in text
     assert "narrow" in text
 
 
