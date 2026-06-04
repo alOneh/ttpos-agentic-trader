@@ -23,7 +23,7 @@ Deux évolutions issues du test 3 mois :
 | V4 | Pairing 5m+Daily / H1+Weekly / 12H+Monthly = **capture visuelle uniquement** (Plan 5 inchangé). |
 | V5 | Récence de touche = **mémoire courte, TTL unique** `scan_touch_ttl_min` (défaut 60). |
 | V6 | **Dedup par épisode** : 1 alerte quand une région devient confluente ; ré-arme quand la confluence disparaît puis revient. |
-| V7 | Niveaux indicatifs **risque serré** : LONG `entry=zone_low, stop=zone_low−buffer` ; SHORT `entry=zone_high, stop=zone_high+buffer` ; `buffer=buffer_frac×largeur_zone`. |
+| V7 | Niveaux indicatifs **risque serré** : LONG `entry=zone_low, stop=entry−risk` ; SHORT `entry=zone_high, stop=entry+risk`. **Itération** : `risk = scan_risk_atr_mult × ATR(exec)` (basé ATR, **découplé de la largeur de zone** — le `buffer×largeur` initial rendait les cibles triviales sur des zones larges). Dilatation ATR par défaut resserrée **0.15 → 0.07**. |
 | V8 | **Double cible** : (A) pivot de TF la plus haute suivant dans le sens ; (B) 2R = `entry ± 2×risk`. Follow-through mesuré vers les deux. |
 
 ## 3. Scanner unifié
