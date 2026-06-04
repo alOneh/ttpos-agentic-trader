@@ -49,8 +49,9 @@ async def test_replay_runs_and_attaches_followthrough():
     assert "by_band" in result.summary and "n_alerts" in result.summary
     assert result.summary["n_alerts"] == len(result.alerts)
     for a in result.alerts:
-        assert a.followthrough.outcome in ("TARGET", "STOP", "OPEN")
-        assert "rr" in a.indicative
+        assert set(a.followthrough.outcomes.values()) <= {"TARGET", "STOP", "OPEN"}
+        assert "2r" in a.followthrough.outcomes
+        assert "rr_htf" in a.indicative and "target_2r" in a.indicative
         assert a.tf_count >= 2
 
 

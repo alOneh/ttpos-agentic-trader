@@ -48,31 +48,34 @@ def test_next_target_none_when_no_pivot_beyond():
     assert tgt is None
 
 
-def test_compute_indicative_long_rr():
-    setup = MTZSetup(symbol="X", direction="LONG", zone_low=98.0, zone_high=102.0,
+def test_compute_indicative_long_tight_risk_dual_target():
+    # zone 90-110 (width 20), buffer_frac 0.25 → buffer 5.
+    setup = MTZSetup(symbol="X", direction="LONG", zone_low=90.0, zone_high=110.0,
                      members=[("D", "S1"), ("W", "S1")], tf_count=2, tags=[])
-    # entry = 100, stop = 98 - 1 = 97 → risk 3; target 110 → reward 10 → rr ≈ 3.333
-    ind = compute_indicative(setup, target_price=110.0, target_label="W R1", buffer=1.0)
-    assert ind["entry"] == 100.0
-    assert ind["stop"] == 97.0
-    assert ind["target"] == 110.0
-    assert ind["target_label"] == "W R1"
-    assert round(ind["rr"], 3) == 3.333
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), buffer_frac=0.25)
+    assert ind["entry"] == 90.0           # reaction edge (support)
+    assert ind["stop"] == 85.0            # just beyond, risk = buffer = 5
+    assert ind["risk"] == 5.0
+    assert ind["target_2r"] == 100.0      # entry + 2*risk
+    assert ind["rr_2r"] == 2.0
+    # next HTF pivot above 90 is W P = 100 → rr_htf = 10/5 = 2.0
+    assert ind["target_htf"] == 100.0 and ind["target_htf_label"] == "W P"
+    assert ind["rr_htf"] == 2.0
 
 
-def test_compute_indicative_short_rr():
-    setup = MTZSetup(symbol="X", direction="SHORT", zone_low=108.0, zone_high=112.0,
+def test_compute_indicative_short_tight_risk():
+    setup = MTZSetup(symbol="X", direction="SHORT", zone_low=90.0, zone_high=110.0,
                      members=[("D", "R1"), ("W", "R1")], tf_count=2, tags=[])
-    # entry = 110, stop = 112 + 1 = 113 → risk 3; target 100 → reward 10 → rr ≈ 3.333
-    ind = compute_indicative(setup, target_price=100.0, target_label="W P", buffer=1.0)
-    assert ind["entry"] == 110.0
-    assert ind["stop"] == 113.0
-    assert round(ind["rr"], 3) == 3.333
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), buffer_frac=0.25)
+    assert ind["entry"] == 110.0          # reaction edge (resistance)
+    assert ind["stop"] == 115.0
+    assert ind["target_2r"] == 100.0      # entry - 2*risk
+    # next HTF pivot below 110 is W P = 100
+    assert ind["target_htf"] == 100.0 and ind["rr_htf"] == 2.0
 
 
-def test_compute_indicative_zero_risk_yields_zero_rr():
+def test_compute_indicative_zero_width_zero_risk():
     setup = MTZSetup(symbol="X", direction="LONG", zone_low=100.0, zone_high=100.0,
                      members=[("D", "S1"), ("W", "S1")], tf_count=2, tags=[])
-    ind = compute_indicative(setup, target_price=110.0, target_label="W R1", buffer=0.0)
-    # entry == stop == 100 → risk 0 → rr 0 (no division error)
-    assert ind["rr"] == 0.0
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), buffer_frac=0.25)
+    assert ind["risk"] == 0.0 and ind["rr_2r"] == 0.0 and ind["rr_htf"] is None

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
@@ -13,7 +13,6 @@ from agentic_trader.domain.scan import TouchEvent
 from agentic_trader.scanner.dedup import scan_alert_id
 from agentic_trader.scanner.engine import build_alerts, scan_symbol_tf
 
-_DEDUP_WINDOW_S = 60 * 60
 _TOUCH_TTL_S = 60 * 60       # single touch TTL (mirrors live scan_touch_ttl_min)
 
 
@@ -68,7 +67,7 @@ def replay_scan(
     total = len(timeline)
 
     store = MemTouchStore()
-    last_sent: dict[str, int] = {}     # alert_id → last emit ts (dedup window)
+    active: set[str] = set()           # episode dedup: ids confluent at the previous tick
     alerts: list[ReplayAlert] = []
 
     for i, bar in enumerate(timeline):
@@ -91,27 +90,32 @@ def replay_scan(
         if touches:
             store.upsert(touches, expires_at=t + timedelta(seconds=_TOUCH_TTL_S))
 
-        active = store.load_active(t)
-        built = build_alerts(symbol=history.symbol, active_touches=active, snapshot=snapshot,
+        active_touches = store.load_active(t)
+        built = build_alerts(symbol=history.symbol, active_touches=active_touches, snapshot=snapshot,
                              min_tf=2, min_score=min_score, buffer_frac=buffer_frac)
+        current: set[str] = set()
         for sa in built:
             aid = scan_alert_id(sa.setup)
-            if t_ts - last_sent.get(aid, -_DEDUP_WINDOW_S - 1) < _DEDUP_WINDOW_S:
+            current.add(aid)
+            if aid in active:           # episode still open → no re-alert
                 continue
-            last_sent[aid] = t_ts
             future = [b for b in base_all if b.time > t_ts]
+            ind = sa.indicative
+            targets = {"2r": ind["target_2r"]}
+            if ind["target_htf"] is not None:
+                targets["htf"] = ind["target_htf"]
             ft = simulate_followthrough(
-                direction=sa.setup.direction, entry=sa.indicative["entry"],
-                stop=sa.indicative["stop"], target=sa.indicative["target"],
-                future_bars=future, horizon_bars=horizon_bars,
+                direction=sa.setup.direction, entry=ind["entry"], stop=ind["stop"],
+                targets=targets, future_bars=future, horizon_bars=horizon_bars,
             )
             alerts.append(ReplayAlert(
                 time=t, direction=sa.setup.direction,
                 zone_low=sa.setup.zone_low, zone_high=sa.setup.zone_high,
                 score=sa.score.total, band=sa.score.band, tf_count=sa.setup.tf_count,
                 members=sa.setup.members, tags=sa.setup.tags,
-                indicative=sa.indicative, followthrough=ft,
+                indicative=ind, followthrough=ft,
             ))
+        active = current               # re-arm ids that dropped out of confluence
 
     return ReplayResult(
         config={"symbol": history.symbol, "start": start.isoformat(), "end": end.isoformat(),
@@ -124,24 +128,28 @@ def _summarize(alerts: list[ReplayAlert]) -> dict:
     by_band: dict[str, int] = defaultdict(int)
     by_dir: dict[str, int] = defaultdict(int)
     by_month: dict[str, int] = defaultdict(int)
-    n_target = n_stop = n_open = 0
+    per_target: dict[str, Counter] = defaultdict(Counter)   # name → Counter(outcome)
     mfe_sum = mae_sum = 0.0
     for a in alerts:
         by_band[a.band] += 1
         by_dir[a.direction] += 1
         by_month[a.time.strftime("%Y-%m")] += 1
-        n_target += a.followthrough.outcome == "TARGET"
-        n_stop += a.followthrough.outcome == "STOP"
-        n_open += a.followthrough.outcome == "OPEN"
+        for name, oc in a.followthrough.outcomes.items():
+            per_target[name][oc] += 1
         mfe_sum += a.followthrough.mfe_r
         mae_sum += a.followthrough.mae_r
     n = len(alerts)
-    resolved = n_target + n_stop
+    targets: dict[str, dict] = {}
+    for name, c in per_target.items():
+        resolved = c["TARGET"] + c["STOP"]
+        targets[name] = {
+            "TARGET": c["TARGET"], "STOP": c["STOP"], "OPEN": c["OPEN"],
+            "win_rate": (c["TARGET"] / resolved) if resolved else None,
+        }
     return {
         "n_alerts": n,
         "by_band": dict(by_band), "by_direction": dict(by_dir), "by_month": dict(by_month),
-        "n_target": n_target, "n_stop": n_stop, "n_open": n_open,
-        "win_rate": (n_target / resolved) if resolved else None,
+        "targets": targets,
         "avg_mfe_r": (mfe_sum / n) if n else None,
         "avg_mae_r": (mae_sum / n) if n else None,
     }

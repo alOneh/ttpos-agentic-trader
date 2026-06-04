@@ -85,25 +85,36 @@ def next_target(
     return best.value, f"{pivot_set.timeframe} {best.tag}"
 
 
-def compute_indicative(
-    setup: MTZSetup, *, target_price: float, target_label: str, buffer: float
-) -> dict:
-    """Indicative entry/stop/target/RR for the RR scoring factor (§5.1).
+def compute_indicative(setup: MTZSetup, *, htf_pivot_set: PivotSet, buffer_frac: float) -> dict:
+    """Tight-risk indicative levels with two targets (Scanner v2 §5).
 
-    entry = MTZ zone midpoint; stop = outer zone edge on the loss side ± buffer;
-    rr = |target - entry| / |entry - stop| (0 when risk is 0).
+    Entry at the reaction edge of the zone, stop just beyond it:
+      LONG  → entry=zone_low,  stop=zone_low - buffer
+      SHORT → entry=zone_high, stop=zone_high + buffer
+    where buffer = buffer_frac × zone width, so risk = buffer.
+    Targets: (A) next higher-TF pivot beyond entry; (B) 2R = entry ± 2·risk.
     """
-    entry = (setup.zone_low + setup.zone_high) / 2.0
+    width = setup.zone_high - setup.zone_low
+    buffer = buffer_frac * width
     if setup.direction == "LONG":
-        stop = setup.zone_low - buffer
+        entry = setup.zone_low
+        stop = entry - buffer
+        target_2r = entry + 2 * buffer
     else:
-        stop = setup.zone_high + buffer
+        entry = setup.zone_high
+        stop = entry + buffer
+        target_2r = entry - 2 * buffer
     risk = abs(entry - stop)
-    rr = abs(target_price - entry) / risk if risk > 0 else 0.0
+    tgt = next_target(htf_pivot_set, direction=setup.direction, beyond_price=entry)
+    target_htf = tgt[0] if tgt else None
+    rr_htf = (abs(target_htf - entry) / risk) if (tgt and risk > 0) else None
     return {
         "entry": entry,
         "stop": stop,
-        "target": target_price,
-        "target_label": target_label,
-        "rr": rr,
+        "risk": risk,
+        "target_htf": target_htf,
+        "target_htf_label": tgt[1] if tgt else None,
+        "rr_htf": rr_htf,
+        "target_2r": target_2r,
+        "rr_2r": 2.0 if risk > 0 else 0.0,
     }

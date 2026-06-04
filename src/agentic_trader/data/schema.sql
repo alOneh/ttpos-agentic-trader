@@ -100,3 +100,12 @@ CREATE TABLE IF NOT EXISTS scan_notif_log (
     error TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_scan_notif_sent_at ON scan_notif_log(sent_at, status);
+
+-- Currently-confluent MTZ regions per symbol (episode dedup: one alert per episode;
+-- an id absent from the latest scan is removed → re-arms when confluence returns).
+CREATE TABLE IF NOT EXISTS scan_active_episodes (
+    alert_id TEXT PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    last_seen INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_scan_episodes_symbol ON scan_active_episodes(symbol);

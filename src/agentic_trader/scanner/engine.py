@@ -25,7 +25,7 @@ from agentic_trader.notify.scan_formatter import render_scan_alert
 from agentic_trader.observability.logging import get_logger
 from agentic_trader.scanner.dedup import ScanDedupPolicy, scan_alert_id
 from agentic_trader.scanner.mtz import aggregate_mtz
-from agentic_trader.scanner.scoring import compute_indicative, next_target, score_setup
+from agentic_trader.scanner.scoring import compute_indicative, score_setup
 from agentic_trader.scanner.touch import detect_touches
 from agentic_trader.scanner.zones import build_zones
 
@@ -85,19 +85,14 @@ def build_alerts(
     cpr_class = cpr_info.class_stat if cpr_info is not None else "moderate"
     alerts: list[ScanAlert] = []
     for setup in setups:
-        entry = (setup.zone_low + setup.zone_high) / 2.0
         htf = _highest_tf(setup)
-        target = next_target(snapshot.pivots[htf], direction=setup.direction, beyond_price=entry)
-        if target is None:
-            continue
-        buffer = buffer_frac * (setup.zone_high - setup.zone_low)
         indicative = compute_indicative(
-            setup, target_price=target[0], target_label=target[1], buffer=buffer,
+            setup, htf_pivot_set=snapshot.pivots[htf], buffer_frac=buffer_frac,
         )
         reaction = detect_reaction(snapshot.m5_bars, setup.direction)
         score = score_setup(
             direction=setup.direction, tf_count=setup.tf_count, bias=bias,
-            cpr_class=cpr_class, reaction=reaction, rr=indicative["rr"],
+            cpr_class=cpr_class, reaction=reaction, rr=indicative["rr_htf"] or 0.0,
         )
         if score.total < min_score:
             continue
@@ -131,9 +126,6 @@ async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
     still count when price returns. Returns the number of alerts sent.
     """
     ttl_s = deps.settings.scan_touch_ttl_min * 60
-    recent_ids = await deps.repo.recent_scan_notif_ids(
-        window_min=deps.settings.scan_dedup_window_min, now=now,
-    )
     total_sent = 0
     for symbol in deps.symbols:
         try:
@@ -162,9 +154,11 @@ async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
             _log.exception("scan_symbol_failed", symbol=symbol)
             continue
 
-        to_send, suppressed = deps.dedup.filter(alerts, recent_ids=recent_ids)
-        if suppressed:
-            _log.debug("scan_alerts_suppressed", symbol=symbol, count=len(suppressed))
+        # Episode dedup: emit only regions not already confluent at the previous scan.
+        prev_active = await deps.repo.active_episode_ids(symbol)
+        current = {a.id for a in alerts}
+        to_send = [a for a in alerts if a.id not in prev_active]
+        await deps.repo.set_active_episodes(symbol, current, now=now)
         for a in alerts:
             await deps.repo.save_scan_alert(a)
         # Per-alert isolation: a Telegram failure on one alert must not skip the
@@ -186,7 +180,6 @@ async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
                 )
                 if ok:
                     total_sent += 1
-                    recent_ids.add(a.id)  # within-pass dedup across symbols
             except Exception:
                 _log.exception("scan_notify_failed", symbol=symbol, alert_id=a.id)
     return total_sent

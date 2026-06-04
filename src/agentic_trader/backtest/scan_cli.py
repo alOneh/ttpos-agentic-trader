@@ -26,10 +26,13 @@ def summarize_text(result: ReplayResult) -> str:
         f"MTZ scan replay — {c['symbol']}  {c['start']} → {c['end']}  (min_score={c['min_score']})",
         f"alerts: n_alerts={s['n_alerts']}  by_direction={s['by_direction']}  by_band={s['by_band']}",
         f"by_month={s['by_month']}",
-        f"outcomes: TARGET={s['n_target']}  STOP={s['n_stop']}  OPEN={s['n_open']}  "
-        f"win_rate={s['win_rate']}",
-        f"avg_mfe_r={s['avg_mfe_r']}  avg_mae_r={s['avg_mae_r']}",
     ]
+    for name, t in s["targets"].items():
+        lines.append(
+            f"target[{name}]: TARGET={t['TARGET']} STOP={t['STOP']} OPEN={t['OPEN']} "
+            f"win_rate={t['win_rate']}"
+        )
+    lines.append(f"avg_mfe_r={s['avg_mfe_r']}  avg_mae_r={s['avg_mae_r']}")
     return "\n".join(lines)
 
 

@@ -185,6 +185,27 @@ class Repository:
         )
         await self._db.commit()
 
+    async def active_episode_ids(self, symbol: str) -> set[str]:
+        """Confluence ids that were active at the previous scan (episode dedup)."""
+        assert self._db is not None
+        cur = await self._db.execute(
+            "SELECT alert_id FROM scan_active_episodes WHERE symbol=?", (symbol,)
+        )
+        return {r[0] for r in await cur.fetchall()}
+
+    async def set_active_episodes(self, symbol: str, ids: set[str], *, now: datetime) -> None:
+        """Replace the symbol's active-episode set with `ids` (absent ids re-arm)."""
+        assert self._db is not None
+        await self._db.execute("DELETE FROM scan_active_episodes WHERE symbol=?", (symbol,))
+        if ids:
+            ts = int(now.timestamp())
+            await self._db.executemany(
+                "INSERT OR REPLACE INTO scan_active_episodes(alert_id,symbol,last_seen) "
+                "VALUES (?,?,?)",
+                [(aid, symbol, ts) for aid in ids],
+            )
+        await self._db.commit()
+
     async def recent_scan_notif_ids(self, *, window_min: int, now: datetime) -> set[str]:
         assert self._db is not None
         floor = int(now.timestamp()) - window_min * 60

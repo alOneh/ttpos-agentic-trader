@@ -12,8 +12,9 @@ def _alert(direction="LONG", tags=None, tf_count=3, total=85):
     sc = Score(total=total, band=band_for(total),
                breakdown={"align": 20, "cpr": 15, "mtz": 25, "reaction": 15, "rr": 10})
     return ScanAlert(id="abc", setup=setup, score=sc,
-                     indicative={"entry": 2414.0, "stop": 2410.8, "target": 2425.0,
-                                 "target_label": "Weekly R1", "rr": 3.4},
+                     indicative={"entry": 2410.0, "stop": 2408.0, "risk": 2.0,
+                                 "target_htf": 2425.0, "target_htf_label": "W R1",
+                                 "rr_htf": 7.5, "target_2r": 2414.0, "rr_2r": 2.0},
                      bias="strong_buy", cpr_class="narrow",
                      created_at=datetime(2026, 6, 3, 14, 35, tzinfo=UTC))
 
@@ -24,7 +25,8 @@ def test_render_contains_core_fields():
     assert "LONG" in text
     assert "85" in text and "excellent" in text
     assert "D PDL-S1" in text and "W S1" in text and "M P" in text
-    assert "3.4" in text  # rr
+    assert "7.5" in text  # rr_htf
+    assert "2R" in text   # dual target
     assert "strong_buy" in text
     assert "narrow" in text
 

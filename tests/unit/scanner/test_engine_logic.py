@@ -69,7 +69,8 @@ def test_build_alerts_emits_scored_mtz_above_threshold():
     a = alerts[0]
     assert a.setup.direction == "LONG"
     assert a.bias in ("strong_buy", "buy", "neutral", "sell", "strong_sell")
-    assert "entry" in a.indicative and "rr" in a.indicative
+    assert "entry" in a.indicative and "rr_htf" in a.indicative
+    assert "target_2r" in a.indicative
 
 
 def test_build_alerts_drops_below_min_score():

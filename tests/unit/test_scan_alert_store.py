@@ -48,3 +48,18 @@ async def test_recent_excludes_failed_status(repo):
     now = datetime(2026, 6, 3, 14, 0, tzinfo=UTC)
     await repo.record_scan_notif(alert_id="f", status="failed", sent_at=now)
     assert await repo.recent_scan_notif_ids(window_min=60, now=now) == set()
+
+
+async def test_active_episodes_roundtrip_and_rearm(repo, utc_now):
+    assert await repo.active_episode_ids("X") == set()
+    await repo.set_active_episodes("X", {"a", "b"}, now=utc_now)
+    assert await repo.active_episode_ids("X") == {"a", "b"}
+    # "b" drops out of confluence → removed (re-armable); "c" appears
+    await repo.set_active_episodes("X", {"a", "c"}, now=utc_now)
+    assert await repo.active_episode_ids("X") == {"a", "c"}
+    # other symbols are isolated
+    await repo.set_active_episodes("Y", {"z"}, now=utc_now)
+    assert await repo.active_episode_ids("X") == {"a", "c"}
+    # empty set clears the symbol
+    await repo.set_active_episodes("X", set(), now=utc_now)
+    assert await repo.active_episode_ids("X") == set()
