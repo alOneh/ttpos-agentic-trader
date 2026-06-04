@@ -21,7 +21,6 @@ from agentic_trader.live.scheduler import _register_digest_jobs
 from agentic_trader.notify.capture import FileChartCapturer, NullCapturer
 from agentic_trader.notify.telegram import TelegramNotifier
 from agentic_trader.observability.logging import configure_logging, get_logger
-from agentic_trader.scanner.dedup import ScanDedupPolicy
 from agentic_trader.scanner.engine import ScanDeps
 
 
@@ -58,8 +57,7 @@ async def main() -> None:
     )
     scan_deps = ScanDeps(
         settings=settings, repo=repo, fetcher=fetcher, cache=cache,
-        notifier=notifier, dedup=ScanDedupPolicy(),
-        symbols=[sc.symbol for sc in cfg.watchlist], capturer=capturer,
+        notifier=notifier, symbols=[sc.symbol for sc in cfg.watchlist], capturer=capturer,
     )
     scheduler = setup_scan_scheduler(scan_deps)
 

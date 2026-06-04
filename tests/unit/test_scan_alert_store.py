@@ -21,8 +21,9 @@ def _alert(aid: str, t: datetime) -> ScanAlert:
     sc = Score(total=72, band=band_for(72),
                breakdown={"align": 20, "cpr": 15, "rr": 15, "reaction": 15, "x": 7})
     return ScanAlert(id=aid, setup=setup, score=sc,
-                     indicative={"entry": 101.0, "stop": 99.0, "target": 110.0,
-                                 "target_label": "W R1", "rr": 4.5},
+                     indicative={"entry": 100.0, "stop": 99.0, "risk": 1.0,
+                                 "target_htf": 110.0, "target_htf_label": "W R1",
+                                 "rr_htf": 10.0, "target_2r": 102.0, "rr_2r": 2.0},
                      bias="strong_buy", cpr_class="narrow", created_at=t)
 
 

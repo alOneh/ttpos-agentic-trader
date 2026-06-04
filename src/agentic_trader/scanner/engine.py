@@ -23,7 +23,7 @@ from agentic_trader.live.snapshot_builder import build_snapshot
 from agentic_trader.notify.capture import ChartCapturer, NullCapturer
 from agentic_trader.notify.scan_formatter import render_scan_alert
 from agentic_trader.observability.logging import get_logger
-from agentic_trader.scanner.dedup import ScanDedupPolicy, scan_alert_id
+from agentic_trader.scanner.dedup import scan_alert_id
 from agentic_trader.scanner.mtz import aggregate_mtz
 from agentic_trader.scanner.scoring import compute_indicative, score_setup
 from agentic_trader.scanner.touch import detect_touches
@@ -113,7 +113,6 @@ class ScanDeps:
     fetcher: TVFetcher
     cache: PivotsCache
     notifier: object              # has async send(text)->bool and send_photo(...)
-    dedup: ScanDedupPolicy
     symbols: list[str]
     capturer: ChartCapturer = field(default_factory=NullCapturer)
 
@@ -154,13 +153,18 @@ async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
             _log.exception("scan_symbol_failed", symbol=symbol)
             continue
 
-        # Episode dedup: emit only regions not already confluent at the previous scan.
-        prev_active = await deps.repo.active_episode_ids(symbol)
-        current = {a.id for a in alerts}
-        to_send = [a for a in alerts if a.id not in prev_active]
-        await deps.repo.set_active_episodes(symbol, current, now=now)
-        for a in alerts:
-            await deps.repo.save_scan_alert(a)
+        # Episode dedup + persistence: isolated per symbol so a DB error here doesn't
+        # skip the rest of the watchlist.
+        try:
+            prev_active = await deps.repo.active_episode_ids(symbol)
+            current = {a.id for a in alerts}
+            to_send = [a for a in alerts if a.id not in prev_active]
+            await deps.repo.set_active_episodes(symbol, current, now=now)
+            for a in alerts:
+                await deps.repo.save_scan_alert(a)
+        except Exception:
+            _log.exception("scan_episode_failed", symbol=symbol)
+            continue
         # Per-alert isolation: a Telegram failure on one alert must not skip the
         # remaining alerts or the rest of the watchlist.
         for a in to_send:

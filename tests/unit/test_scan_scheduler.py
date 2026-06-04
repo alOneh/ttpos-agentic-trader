@@ -25,3 +25,10 @@ def test_exec_tf_drives_cron_minute_step():
     # the trigger's minute field reflects the exec TF step
     assert "*/5" in str(sched5.get_job("scan").trigger)
     assert "*/15" in str(sched15.get_job("scan").trigger)
+
+
+def test_hourly_exec_tf_registers_valid_job():
+    sched = setup_scan_scheduler(_deps("60"))
+    job = sched.get_job("scan")
+    assert job is not None
+    assert "minute='2'" in str(job.trigger)

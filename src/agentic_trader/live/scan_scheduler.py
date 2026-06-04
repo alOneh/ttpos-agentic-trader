@@ -13,7 +13,7 @@ log = get_logger(__name__)
 def _cron_kwargs(exec_tf: str) -> dict:
     """Map the execution TF (TV code) to APScheduler cron kwargs."""
     if exec_tf in ("60", "1H"):
-        return {"minute": 2}                       # once per hour at HH:02
+        return {"minute": 2, "second": 2}          # once per hour at HH:02:02
     step = exec_tf if exec_tf.isdigit() else "5"   # minutes
     return {"minute": f"*/{step}", "second": 2}
 

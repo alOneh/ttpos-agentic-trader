@@ -8,7 +8,6 @@ from agentic_trader.data.cache import PivotsCache
 from agentic_trader.data.fetcher import TVFetcher
 from agentic_trader.data.repository import Repository
 from agentic_trader.domain.scan import TouchEvent
-from agentic_trader.scanner.dedup import ScanDedupPolicy
 from agentic_trader.scanner.engine import ScanDeps, run_scan
 
 NOW = datetime(2026, 6, 3, 14, 35, tzinfo=UTC)
@@ -59,8 +58,7 @@ def _deps(repo, notifier):
     return ScanDeps(
         settings=Settings(scan_min_score=0), repo=repo,
         fetcher=TVFetcher(client=None, fetch_ohlcv_fn=_fake_fetch()),
-        cache=PivotsCache(repo), notifier=notifier,
-        dedup=ScanDedupPolicy(), symbols=[SYMBOL],
+        cache=PivotsCache(repo), notifier=notifier, symbols=[SYMBOL],
     )
 
 
