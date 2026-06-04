@@ -33,13 +33,6 @@ _log = get_logger(__name__)
 
 TF_RANK = {"D": 1, "W": 2, "M": 3}
 
-# trigger TF → (TV bar code for touch candles, touch TTL seconds).
-# Monthly uses Daily candles, not 12H: TradingView does not serve "720" (12H) for
-# our symbols (it times out), and Daily is the right execution granularity for
-# monthly-scale zones (Daily/Monthly ≈ 1/30, mirroring M5/Daily and H1/Weekly).
-# The Monthly cadence (scheduler firing twice daily) is unchanged.
-_SCAN_BARS = {"D": ("5", 15 * 60), "W": ("60", 90 * 60), "M": ("D", 13 * 3600)}
-
 
 def detect_reaction(bars: list[Period], direction: str) -> bool:
     """True when the latest bar shows a rejection in the trade direction."""
@@ -130,9 +123,14 @@ class ScanDeps:
     capturer: ChartCapturer = field(default_factory=NullCapturer)
 
 
-async def run_scan(deps: ScanDeps, *, trigger_tf: TF, now: datetime) -> int:
-    """One scan pass for `trigger_tf` across all symbols. Returns alerts sent."""
-    bar_code, ttl = _SCAN_BARS[trigger_tf]
+async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
+    """One scan pass across all symbols on the single execution TF. Returns alerts sent.
+
+    Each symbol's execution bars are checked against Daily, Weekly AND Monthly zones
+    in one pass; touches persist for `scan_touch_ttl_min` so recent higher-TF touches
+    still count when price returns. Returns the number of alerts sent.
+    """
+    ttl_s = deps.settings.scan_touch_ttl_min * 60
     recent_ids = await deps.repo.recent_scan_notif_ids(
         window_min=deps.settings.scan_dedup_window_min, now=now,
     )
@@ -141,20 +139,19 @@ async def run_scan(deps: ScanDeps, *, trigger_tf: TF, now: datetime) -> int:
         try:
             snapshot = await build_snapshot(
                 fetcher=deps.fetcher, cache=deps.cache, symbol=symbol, now=now,
+                exec_tf=deps.settings.scan_exec_tf,
             )
-            if trigger_tf == "D":
-                scan_bars = snapshot.m5_bars
-            else:
-                res = await deps.fetcher.fetch_bars(symbol, bar_code, n_bars=50)
-                scan_bars = sorted(res.periods, key=lambda p: p.time)
-            touches = scan_symbol_tf(
-                snapshot=snapshot, scan_tf=trigger_tf, scan_bars=scan_bars,
-                lookback=deps.settings.scan_touch_lookback_bars, now=now,
-            )
-            if touches:
-                await deps.repo.upsert_touches(
-                    touches, expires_at=now + timedelta(seconds=ttl),
+            exec_bars = snapshot.m5_bars
+            touches = []
+            for tf in ("D", "W", "M"):
+                if tf not in snapshot.pivots:
+                    continue
+                touches += scan_symbol_tf(
+                    snapshot=snapshot, scan_tf=tf, scan_bars=exec_bars,
+                    lookback=deps.settings.scan_touch_lookback_bars, now=now,
                 )
+            if touches:
+                await deps.repo.upsert_touches(touches, expires_at=now + timedelta(seconds=ttl_s))
             active = await deps.repo.load_active_touches(symbol, now=now)
             alerts = build_alerts(
                 symbol=symbol, active_touches=active, snapshot=snapshot,
@@ -162,7 +159,7 @@ async def run_scan(deps: ScanDeps, *, trigger_tf: TF, now: datetime) -> int:
                 buffer_frac=deps.settings.scan_buffer_frac,
             )
         except Exception:
-            _log.exception("scan_symbol_failed", symbol=symbol, trigger_tf=trigger_tf)
+            _log.exception("scan_symbol_failed", symbol=symbol)
             continue
 
         to_send, suppressed = deps.dedup.filter(alerts, recent_ids=recent_ids)

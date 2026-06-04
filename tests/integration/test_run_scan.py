@@ -75,7 +75,7 @@ async def _seed_weekly_touch(repo):
 async def test_run_scan_daily_emits_alert_when_weekly_touch_active(repo):
     notifier = _FakeNotifier()
     await _seed_weekly_touch(repo)
-    sent = await run_scan(_deps(repo, notifier), trigger_tf="D", now=NOW)
+    sent = await run_scan(_deps(repo, notifier), now=NOW)
     assert sent >= 1
     assert notifier.sent
     cur = await repo._db.execute("SELECT COUNT(*) FROM scan_alerts")
@@ -86,27 +86,11 @@ async def test_run_scan_dedups_second_run(repo):
     notifier = _FakeNotifier()
     await _seed_weekly_touch(repo)
     deps = _deps(repo, notifier)
-    first = await run_scan(deps, trigger_tf="D", now=NOW)
+    first = await run_scan(deps, now=NOW)
     assert first >= 1
     # second run within the dedup window → already-notified id suppressed
-    second = await run_scan(deps, trigger_tf="D", now=NOW)
+    second = await run_scan(deps, now=NOW)
     assert second == 0
-
-
-def _fake_fetch_monthly():
-    """Higher-TF/scan bars whose in-progress Daily bar wicks into the S1 zone (~90)."""
-    async def fake_fetch(*, symbol, timeframe, n_bars, client=None):
-        if timeframe == "5":
-            bars = _periods(40, base_t=0, step=300, high=101.0, low=99.0, close=100.5)
-            return OHLCVResult(symbol=symbol, timeframe=timeframe, periods=bars,
-                               info=MarketInfo(pricescale=100))
-        bars = _periods(28, base_t=0, step=86400, high=105.0, low=95.0, close=100.0)
-        bars.append(Period(time=28 * 86400, open=100, high=110, low=90, close=100, volume=0))
-        # in-progress Daily bar wicks down to 89.5 → touches the Monthly S1 zone
-        bars.append(Period(time=29 * 86400, open=100, high=101, low=89.5, close=100.5, volume=0))
-        return OHLCVResult(symbol=symbol, timeframe=timeframe, periods=bars,
-                           info=MarketInfo(pricescale=100))
-    return fake_fetch
 
 
 class _RecordingNotifier(_FakeNotifier):
@@ -134,7 +118,7 @@ async def test_run_scan_attaches_capture_when_available(repo, tmp_path):
     await _seed_weekly_touch(repo)
     deps = _deps(repo, notifier)
     deps.capturer = _StubCapturer(str(img))
-    sent = await run_scan(deps, trigger_tf="D", now=NOW)
+    sent = await run_scan(deps, now=NOW)
     assert sent >= 1
     assert notifier.photos and notifier.photos[0][1] == str(img)
     assert notifier.sent == []  # used send_photo, not text send
@@ -149,26 +133,7 @@ async def test_run_scan_falls_back_to_text_when_capture_raises(repo):
     await _seed_weekly_touch(repo)
     deps = _deps(repo, notifier)
     deps.capturer = _BoomCapturer()
-    sent = await run_scan(deps, trigger_tf="D", now=NOW)
+    sent = await run_scan(deps, now=NOW)
     assert sent >= 1
     assert notifier.sent  # fell back to text
     assert notifier.photos == []
-
-
-async def test_run_scan_monthly_uses_daily_bars(repo):
-    # The Monthly cadence fetches Daily bars (TV does not serve 12H). A Daily wick
-    # into the Monthly S1 zone + a pre-seeded Weekly S1 touch → cross-TF MTZ alert.
-    notifier = _FakeNotifier()
-    await _seed_weekly_touch(repo)
-    deps = ScanDeps(
-        settings=Settings(scan_min_score=0), repo=repo,
-        fetcher=TVFetcher(client=None, fetch_ohlcv_fn=_fake_fetch_monthly()),
-        cache=PivotsCache(repo), notifier=notifier,
-        dedup=ScanDedupPolicy(), symbols=[SYMBOL],
-    )
-    sent = await run_scan(deps, trigger_tf="M", now=NOW)
-    assert sent >= 1
-    assert notifier.sent
-    # a Monthly touch was persisted
-    cur = await repo._db.execute("SELECT COUNT(*) FROM touches WHERE timeframe='M'")
-    assert (await cur.fetchone())[0] >= 1

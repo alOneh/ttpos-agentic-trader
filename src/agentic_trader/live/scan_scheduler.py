@@ -10,20 +10,24 @@ from agentic_trader.scanner.engine import ScanDeps, run_scan
 log = get_logger(__name__)
 
 
-async def _scan_job(deps: ScanDeps, trigger_tf: str) -> None:
+def _cron_kwargs(exec_tf: str) -> dict:
+    """Map the execution TF (TV code) to APScheduler cron kwargs."""
+    if exec_tf in ("60", "1H"):
+        return {"minute": 2}                       # once per hour at HH:02
+    step = exec_tf if exec_tf.isdigit() else "5"   # minutes
+    return {"minute": f"*/{step}", "second": 2}
+
+
+async def _scan_job(deps: ScanDeps) -> None:
     try:
-        await run_scan(deps, trigger_tf=trigger_tf, now=datetime.now(UTC))
+        await run_scan(deps, now=datetime.now(UTC))
     except Exception:
-        log.exception("scan_job_failed", trigger_tf=trigger_tf)
+        log.exception("scan_job_failed")
 
 
 def setup_scan_scheduler(deps: ScanDeps) -> AsyncIOScheduler:
-    """3 cadences: M5↔Daily (every 5m), H1↔Weekly (hourly), 12H↔Monthly (twice daily)."""
+    """Single scan job at the configured execution timeframe (scans D/W/M together)."""
     sch = AsyncIOScheduler(timezone=UTC)
-    sch.add_job(_scan_job, "cron", minute="*/5", second=2, id="scan_D",
-                max_instances=1, coalesce=True, kwargs={"deps": deps, "trigger_tf": "D"})
-    sch.add_job(_scan_job, "cron", minute=2, second=2, id="scan_W",
-                max_instances=1, coalesce=True, kwargs={"deps": deps, "trigger_tf": "W"})
-    sch.add_job(_scan_job, "cron", hour="0,12", minute=3, second=2, id="scan_M",
-                max_instances=1, coalesce=True, kwargs={"deps": deps, "trigger_tf": "M"})
+    sch.add_job(_scan_job, "cron", id="scan", max_instances=1, coalesce=True,
+                kwargs={"deps": deps}, **_cron_kwargs(deps.settings.scan_exec_tf))
     return sch

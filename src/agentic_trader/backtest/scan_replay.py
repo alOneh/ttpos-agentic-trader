@@ -5,7 +5,6 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, ConfigDict
-from tradingview_api.models.ohlcv import Period
 
 from agentic_trader.backtest.followthrough import FollowThrough, simulate_followthrough
 from agentic_trader.backtest.history import SymbolHistory
@@ -14,11 +13,8 @@ from agentic_trader.domain.scan import TouchEvent
 from agentic_trader.scanner.dedup import scan_alert_id
 from agentic_trader.scanner.engine import build_alerts, scan_symbol_tf
 
-# Scan-bars source per higher cadence (D uses the base execution series directly).
-_SCAN_KEY = {"W": "60", "M": "1D"}
-_BASE_INTERVAL_S = {"5": 300, "60": 3600}
 _DEDUP_WINDOW_S = 60 * 60
-_SCAN_BAR_LOOKBACK = 50
+_TOUCH_TTL_S = 60 * 60       # single touch TTL (mirrors live scan_touch_ttl_min)
 
 
 class MemTouchStore:
@@ -61,10 +57,6 @@ class ReplayResult(BaseModel):
     summary: dict
 
 
-def _bars_up_to(bars: list[Period], t_ts: int) -> list[Period]:
-    return [b for b in bars if b.time <= t_ts]
-
-
 def replay_scan(
     *, history: SymbolHistory, start: datetime, end: datetime,
     min_score: int = 0, horizon_bars: int = 1440, buffer_frac: float = 0.25,
@@ -74,10 +66,6 @@ def replay_scan(
     base_all = history.bars[base_key]
     timeline = [b for b in base_all if start_ts <= b.time <= end_ts]
     total = len(timeline)
-
-    base_interval = _BASE_INTERVAL_S.get(base_key, 300)
-    # TTLs sized so touches persist across the relevant cadence gap (base-aware).
-    ttls = {"D": 3 * base_interval, "W": max(90 * 60, 2 * base_interval), "M": 13 * 3600}
 
     store = MemTouchStore()
     last_sent: dict[str, int] = {}     # alert_id → last emit ts (dedup window)
@@ -93,22 +81,15 @@ def replay_scan(
         except ValueError:
             continue
 
-        # cadence D every tick; W on the hour; M at 00:00 and 12:00
-        cadences = ["D"]
-        if t.minute == 0:
-            cadences.append("W")
-            if t.hour in (0, 12):
-                cadences.append("M")
-
-        for tf in cadences:
+        # Single execution TF: scan Daily/Weekly/Monthly zones together each tick.
+        touches = []
+        for tf in ("D", "W", "M"):
             if tf not in snapshot.pivots:
                 continue
-            scan_bars = (snapshot.m5_bars if tf == "D"
-                         else _bars_up_to(history.bars[_SCAN_KEY[tf]], t_ts)[-_SCAN_BAR_LOOKBACK:])
-            touches = scan_symbol_tf(snapshot=snapshot, scan_tf=tf, scan_bars=scan_bars,
-                                     lookback=3, now=t)
-            if touches:
-                store.upsert(touches, expires_at=t + timedelta(seconds=ttls[tf]))
+            touches += scan_symbol_tf(snapshot=snapshot, scan_tf=tf,
+                                      scan_bars=snapshot.m5_bars, lookback=3, now=t)
+        if touches:
+            store.upsert(touches, expires_at=t + timedelta(seconds=_TOUCH_TTL_S))
 
         active = store.load_active(t)
         built = build_alerts(symbol=history.symbol, active_touches=active, snapshot=snapshot,
