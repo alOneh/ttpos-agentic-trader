@@ -85,26 +85,23 @@ def next_target(
     return best.value, f"{pivot_set.timeframe} {best.tag}"
 
 
-def compute_indicative(setup: MTZSetup, *, htf_pivot_set: PivotSet, buffer_frac: float) -> dict:
+def compute_indicative(setup: MTZSetup, *, htf_pivot_set: PivotSet, risk: float) -> dict:
     """Tight-risk indicative levels with two targets (Scanner v2 §5).
 
-    Entry at the reaction edge of the zone, stop just beyond it:
-      LONG  → entry=zone_low,  stop=zone_low - buffer
-      SHORT → entry=zone_high, stop=zone_high + buffer
-    where buffer = buffer_frac × zone width, so risk = buffer.
+    Entry at the reaction edge of the zone, stop one `risk` beyond it (risk is an
+    ATR-based distance, independent of the MTZ zone width):
+      LONG  → entry=zone_low,  stop=entry - risk
+      SHORT → entry=zone_high, stop=entry + risk
     Targets: (A) next higher-TF pivot beyond entry; (B) 2R = entry ± 2·risk.
     """
-    width = setup.zone_high - setup.zone_low
-    buffer = buffer_frac * width
     if setup.direction == "LONG":
         entry = setup.zone_low
-        stop = entry - buffer
-        target_2r = entry + 2 * buffer
+        stop = entry - risk
+        target_2r = entry + 2 * risk
     else:
         entry = setup.zone_high
-        stop = entry + buffer
-        target_2r = entry - 2 * buffer
-    risk = abs(entry - stop)
+        stop = entry + risk
+        target_2r = entry - 2 * risk
     tgt = next_target(htf_pivot_set, direction=setup.direction, beyond_price=entry)
     target_htf = tgt[0] if tgt else None
     rr_htf = (abs(target_htf - entry) / risk) if (tgt and risk > 0) else None

@@ -49,12 +49,12 @@ def test_next_target_none_when_no_pivot_beyond():
 
 
 def test_compute_indicative_long_tight_risk_dual_target():
-    # zone 90-110 (width 20), buffer_frac 0.25 → buffer 5.
+    # ATR-based risk (decoupled from zone width): risk = 5.
     setup = MTZSetup(symbol="X", direction="LONG", zone_low=90.0, zone_high=110.0,
                      members=[("D", "S1"), ("W", "S1")], tf_count=2, tags=[])
-    ind = compute_indicative(setup, htf_pivot_set=_pivots(), buffer_frac=0.25)
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=5.0)
     assert ind["entry"] == 90.0           # reaction edge (support)
-    assert ind["stop"] == 85.0            # just beyond, risk = buffer = 5
+    assert ind["stop"] == 85.0            # entry - risk
     assert ind["risk"] == 5.0
     assert ind["target_2r"] == 100.0      # entry + 2*risk
     assert ind["rr_2r"] == 2.0
@@ -66,16 +66,16 @@ def test_compute_indicative_long_tight_risk_dual_target():
 def test_compute_indicative_short_tight_risk():
     setup = MTZSetup(symbol="X", direction="SHORT", zone_low=90.0, zone_high=110.0,
                      members=[("D", "R1"), ("W", "R1")], tf_count=2, tags=[])
-    ind = compute_indicative(setup, htf_pivot_set=_pivots(), buffer_frac=0.25)
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=5.0)
     assert ind["entry"] == 110.0          # reaction edge (resistance)
-    assert ind["stop"] == 115.0
+    assert ind["stop"] == 115.0           # entry + risk
     assert ind["target_2r"] == 100.0      # entry - 2*risk
     # next HTF pivot below 110 is W P = 100
     assert ind["target_htf"] == 100.0 and ind["rr_htf"] == 2.0
 
 
-def test_compute_indicative_zero_width_zero_risk():
+def test_compute_indicative_zero_risk():
     setup = MTZSetup(symbol="X", direction="LONG", zone_low=100.0, zone_high=100.0,
                      members=[("D", "S1"), ("W", "S1")], tf_count=2, tags=[])
-    ind = compute_indicative(setup, htf_pivot_set=_pivots(), buffer_frac=0.25)
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=0.0)
     assert ind["risk"] == 0.0 and ind["rr_2r"] == 0.0 and ind["rr_htf"] is None

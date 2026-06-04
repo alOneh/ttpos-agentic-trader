@@ -44,7 +44,7 @@ async def test_replay_runs_and_attaches_followthrough():
     start = datetime.fromtimestamp(29 * 86400, tz=UTC)
     end = datetime.fromtimestamp(29 * 86400 + 60 * 300, tz=UTC)
     result = replay_scan(history=hist, start=start, end=end,
-                         min_score=0, horizon_bars=20, buffer_frac=0.25)
+                         min_score=0, horizon_bars=20, risk_atr_mult=1.0)
     # structure present, no crash; every alert carries a follow-through + indicative
     assert "by_band" in result.summary and "n_alerts" in result.summary
     assert result.summary["n_alerts"] == len(result.alerts)
@@ -62,5 +62,5 @@ async def test_replay_h1_base_runs_without_m5():
     start = datetime.fromtimestamp(0, tz=UTC)
     end = datetime.fromtimestamp(30 * 3600, tz=UTC)
     result = replay_scan(history=hist, start=start, end=end,
-                         min_score=0, horizon_bars=10, buffer_frac=0.25, base_key="60")
+                         min_score=0, horizon_bars=10, risk_atr_mult=1.0, base_key="60")
     assert result.summary["n_alerts"] == len(result.alerts)

@@ -79,7 +79,7 @@ async def _run(args: argparse.Namespace) -> None:
     print(f"fetched base={base_key} bars: {len(history.bars.get(base_key, []))}", file=sys.stderr)
     result = replay_scan(history=history, start=start, end=end,
                          min_score=args.min_score, horizon_bars=horizon,
-                         buffer_frac=args.buffer_frac, base_key=base_key, on_progress=_progress)
+                         risk_atr_mult=args.risk_atr_mult, base_key=base_key, on_progress=_progress)
     print(summarize_text(result))
     if args.output:
         _write_json(args.output, result)
@@ -97,7 +97,8 @@ def main() -> None:
     p.add_argument("--min-score", dest="min_score", type=int, default=0)
     p.add_argument("--horizon-bars", dest="horizon_bars", type=int, default=0,
                    help="follow-through horizon in base bars (0 = auto: 1440 m5 / 120 h1)")
-    p.add_argument("--buffer-frac", dest="buffer_frac", type=float, default=0.25)
+    p.add_argument("--risk-atr-mult", dest="risk_atr_mult", type=float, default=1.0,
+                   help="indicative risk = mult × ATR(exec TF)")
     p.add_argument("--output", default=None)
     asyncio.run(_run(p.parse_args()))
 

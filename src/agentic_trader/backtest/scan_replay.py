@@ -58,7 +58,7 @@ class ReplayResult(BaseModel):
 
 def replay_scan(
     *, history: SymbolHistory, start: datetime, end: datetime,
-    min_score: int = 0, horizon_bars: int = 1440, buffer_frac: float = 0.25,
+    min_score: int = 0, horizon_bars: int = 1440, risk_atr_mult: float = 1.0,
     base_key: str = "5", on_progress: Callable[[int, int], None] | None = None,
 ) -> ReplayResult:
     start_ts, end_ts = int(start.timestamp()), int(end.timestamp())
@@ -92,7 +92,7 @@ def replay_scan(
 
         active_touches = store.load_active(t)
         built = build_alerts(symbol=history.symbol, active_touches=active_touches, snapshot=snapshot,
-                             min_tf=2, min_score=min_score, buffer_frac=buffer_frac)
+                             min_tf=2, min_score=min_score, risk_atr_mult=risk_atr_mult)
         current: set[str] = set()
         for sa in built:
             aid = scan_alert_id(sa.setup)

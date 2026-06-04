@@ -64,7 +64,7 @@ def _long_s1_touches():
 def test_build_alerts_emits_scored_mtz_above_threshold():
     snap = _snapshot()
     alerts = build_alerts(symbol="X", active_touches=_long_s1_touches(), snapshot=snap,
-                          min_tf=2, min_score=0, buffer_frac=0.25)
+                          min_tf=2, min_score=0, risk_atr_mult=1.0)
     assert len(alerts) == 1
     a = alerts[0]
     assert a.setup.direction == "LONG"
@@ -76,5 +76,5 @@ def test_build_alerts_emits_scored_mtz_above_threshold():
 def test_build_alerts_drops_below_min_score():
     snap = _snapshot()
     alerts = build_alerts(symbol="X", active_touches=_long_s1_touches(), snapshot=snap,
-                          min_tf=2, min_score=999, buffer_frac=0.25)
+                          min_tf=2, min_score=999, risk_atr_mult=1.0)
     assert alerts == []

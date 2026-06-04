@@ -74,20 +74,25 @@ def _highest_tf(setup: MTZSetup) -> TF:
 
 def build_alerts(
     *, symbol: str, active_touches: list[TouchEvent], snapshot: MarketSnapshot,
-    min_tf: int, min_score: int, buffer_frac: float,
+    min_tf: int, min_score: int, risk_atr_mult: float,
 ) -> list[ScanAlert]:
-    """Aggregate touches → MTZ → score → ScanAlert, keeping score >= min_score."""
+    """Aggregate touches → MTZ → score → ScanAlert, keeping score >= min_score.
+
+    Indicative risk = `risk_atr_mult × atr_exec` (ATR of the execution series),
+    decoupled from the MTZ zone width.
+    """
     setups = aggregate_mtz(active_touches, min_tf=min_tf)
     if not setups:
         return []
     bias = compute_stack_bias(snapshot)
     cpr_info = snapshot.cpr_widths.get("D")
     cpr_class = cpr_info.class_stat if cpr_info is not None else "moderate"
+    risk = risk_atr_mult * snapshot.atr_m5
     alerts: list[ScanAlert] = []
     for setup in setups:
         htf = _highest_tf(setup)
         indicative = compute_indicative(
-            setup, htf_pivot_set=snapshot.pivots[htf], buffer_frac=buffer_frac,
+            setup, htf_pivot_set=snapshot.pivots[htf], risk=risk,
         )
         reaction = detect_reaction(snapshot.m5_bars, setup.direction)
         score = score_setup(
@@ -147,7 +152,7 @@ async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
             alerts = build_alerts(
                 symbol=symbol, active_touches=active, snapshot=snapshot,
                 min_tf=2, min_score=deps.settings.scan_min_score,
-                buffer_frac=deps.settings.scan_buffer_frac,
+                risk_atr_mult=deps.settings.scan_risk_atr_mult,
             )
         except Exception:
             _log.exception("scan_symbol_failed", symbol=symbol)

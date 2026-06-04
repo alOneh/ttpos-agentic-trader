@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     scan_min_score: int = 55
     scan_dedup_window_min: int = 60
     scan_touch_lookback_bars: int = 3
-    scan_buffer_frac: float = 0.25
+    scan_risk_atr_mult: float = 1.0  # indicative risk = mult × ATR(exec TF)
     scan_exec_tf: str = "5"          # single execution timeframe (TV code): 5 | 15 | 60 …
     scan_touch_ttl_min: int = 60     # how long a touch stays active for confluence
     capture_enabled: bool = False
