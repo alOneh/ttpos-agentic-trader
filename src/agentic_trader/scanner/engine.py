@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
+from tradingview_api.exceptions import ConnectionClosedError
 from tradingview_api.models.ohlcv import Period
 
 from agentic_trader.analysis.bias import compute_stack_bias
@@ -30,6 +32,9 @@ from agentic_trader.scanner.touch import detect_touches
 from agentic_trader.scanner.zones import build_zones
 
 _log = get_logger(__name__)
+_PARIS = ZoneInfo("Europe/Paris")
+# Send a Telegram warning after this many consecutive all-symbols-failed cycles.
+_HEALTH_FAIL_THRESHOLD = 3
 
 TF_RANK = {"D": 1, "W": 2, "M": 3}
 
@@ -120,6 +125,7 @@ class ScanDeps:
     notifier: object              # has async send(text)->bool and send_photo(...)
     symbols: list[str]
     capturer: ChartCapturer = field(default_factory=NullCapturer)
+    health: dict = field(default_factory=lambda: {"fails": 0, "alerted": False})
 
 
 async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
@@ -131,6 +137,12 @@ async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
     """
     ttl_s = deps.settings.scan_touch_ttl_min * 60
     total_sent = 0
+    symbols_ok = 0
+    # Reconnect the TradingView WebSocket if it dropped between cycles.
+    try:
+        await deps.fetcher.ensure_connected()
+    except Exception:
+        _log.exception("ensure_connected_failed")
     for symbol in deps.symbols:
         try:
             snapshot = await build_snapshot(
@@ -154,6 +166,15 @@ async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
                 min_tf=2, min_score=deps.settings.scan_min_score,
                 risk_atr_mult=deps.settings.scan_risk_atr_mult,
             )
+            symbols_ok += 1
+        except ConnectionClosedError:
+            # WebSocket dropped mid-cycle: reconnect once so the next symbols/cycle recover.
+            _log.warning("scan_connection_lost", symbol=symbol)
+            try:
+                await deps.fetcher.reconnect()
+            except Exception:
+                _log.exception("reconnect_failed", symbol=symbol)
+            continue
         except Exception:
             _log.exception("scan_symbol_failed", symbol=symbol)
             continue
@@ -191,4 +212,31 @@ async def run_scan(deps: ScanDeps, *, now: datetime) -> int:
                     total_sent += 1
             except Exception:
                 _log.exception("scan_notify_failed", symbol=symbol, alert_id=a.id)
+
+    await _update_health(deps, symbols_ok=symbols_ok, total=len(deps.symbols), now=now)
     return total_sent
+
+
+async def _update_health(deps: ScanDeps, *, symbols_ok: int, total: int, now: datetime) -> None:
+    """Telegram heartbeat: warn after consecutive all-failed cycles, notify on recovery."""
+    h = deps.health
+    when = now.astimezone(_PARIS).strftime("%d/%m %H:%M")
+    if total > 0 and symbols_ok == 0:
+        h["fails"] += 1
+        if h["fails"] >= _HEALTH_FAIL_THRESHOLD and not h["alerted"]:
+            h["alerted"] = True
+            try:
+                await deps.notifier.send(
+                    f"⚠️ Scanner MTZ — aucune donnée depuis {h['fails']} cycles "
+                    f"(connexion TradingView ?). {when} (Paris)"
+                )
+            except Exception:
+                _log.exception("health_alert_send_failed")
+    else:
+        if h["alerted"]:
+            try:
+                await deps.notifier.send(f"✅ Scanner MTZ rétabli. {when} (Paris)")
+            except Exception:
+                _log.exception("health_recover_send_failed")
+        h["fails"] = 0
+        h["alerted"] = False

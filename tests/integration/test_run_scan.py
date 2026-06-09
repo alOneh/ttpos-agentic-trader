@@ -135,3 +135,35 @@ async def test_run_scan_falls_back_to_text_when_capture_raises(repo):
     assert sent >= 1
     assert notifier.sent  # fell back to text
     assert notifier.photos == []
+
+
+class _FakeClient:
+    def __init__(self):
+        self.is_connected = True
+        self.connects = 0
+
+    async def connect(self):
+        self.connects += 1
+        self.is_connected = True
+
+    async def close(self):
+        self.is_connected = False
+
+
+async def test_run_scan_reconnects_on_connection_closed(repo):
+    from tradingview_api.exceptions import ConnectionClosedError
+
+    async def boom(*, symbol, timeframe, n_bars, client=None):
+        raise ConnectionClosedError("Client is closing")
+
+    client = _FakeClient()
+    notifier = _FakeNotifier()
+    deps = ScanDeps(
+        settings=Settings(scan_min_score=0), repo=repo,
+        fetcher=TVFetcher(client=client, fetch_ohlcv_fn=boom),
+        cache=PivotsCache(repo), notifier=notifier, symbols=[SYMBOL],
+    )
+    sent = await run_scan(deps, now=NOW)
+    assert sent == 0                      # nothing scanned, no crash
+    assert client.connects >= 1           # reconnect was attempted
+    assert deps.health["fails"] == 1      # cycle counted as failed
