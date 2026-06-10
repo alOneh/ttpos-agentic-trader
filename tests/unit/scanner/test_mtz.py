@@ -23,6 +23,8 @@ def test_two_tf_overlap_makes_one_setup():
     assert s.direction == "LONG"
     assert s.zone_low == 100.0 and s.zone_high == 103.0
     assert ("D", "S1") in s.members and ("W", "S1") in s.members
+    # member_levels = midpoint of each touched zone (D S1 [100,102]→101, W S1 [101,103]→102)
+    assert s.member_levels == [101.0, 102.0]
 
 
 def test_non_overlapping_zones_do_not_cluster():

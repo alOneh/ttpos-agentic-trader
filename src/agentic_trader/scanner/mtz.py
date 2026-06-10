@@ -46,6 +46,7 @@ def _emit(cluster: list[TouchEvent], direction: str, min_tf: int,
     has_bracket = any(t.zone_kind == "bracket" for t in cluster)
     if has_bracket and len(tfs) >= 2:
         tags.append("bracket_reversal")
+    member_levels = sorted({round((t.zone_low + t.zone_high) / 2.0, 8) for t in cluster})
     out.append(
         MTZSetup(
             symbol=cluster[0].symbol,
@@ -53,6 +54,7 @@ def _emit(cluster: list[TouchEvent], direction: str, min_tf: int,
             zone_low=min(t.zone_low for t in cluster),
             zone_high=max(t.zone_high for t in cluster),
             members=sorted({(t.timeframe, t.tag) for t in cluster}),
+            member_levels=member_levels,
             tf_count=len(tfs),
             tags=tags,
         )

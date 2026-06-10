@@ -30,7 +30,7 @@ def test_next_target_short_picks_nearest_pivot_below():
 
 
 def test_next_target_skips_cpr_bc_tc():
-    # Non-degenerate: PDH=100, PDL=80, PDC=98 → P=92.6667, BC=90, TC=95.3333.
+    # Non-degenerate: PDH=100, PDL=80, PDC=98 -> P=92.6667, BC=90, TC=95.3333.
     # For LONG beyond 89.0, BC=90 is the nearest level, but BC/TC are context-only,
     # so the target must skip to P=92.6667.
     ps = compute_pivots(
@@ -48,26 +48,31 @@ def test_next_target_none_when_no_pivot_beyond():
     assert tgt is None
 
 
-def test_compute_indicative_long_tight_risk_dual_target():
-    # ATR-based risk (decoupled from zone width): risk = 5.
-    setup = MTZSetup(symbol="X", direction="LONG", zone_low=90.0, zone_high=110.0,
-                     members=[("D", "S1"), ("W", "S1")], tf_count=2, tags=[])
-    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=5.0)
-    assert ind["entry"] == 110.0          # first-contact edge: top of support
+def test_compute_indicative_long_anchors_entry_to_nearest_member():
+    # member levels 100 & 110; price 109 -> entry anchored to 110 (nearest), NOT the
+    # far edge of the merged cluster.
+    setup = MTZSetup(symbol="X", direction="LONG", zone_low=98.0, zone_high=112.0,
+                     members=[("D", "P"), ("W", "R1")], member_levels=[100.0, 110.0],
+                     tf_count=2, tags=[])
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=5.0, current_price=109.0)
+    assert ind["entry"] == 110.0          # nearest member to price (reaction level)
     assert ind["stop"] == 105.0           # entry - risk
     assert ind["risk"] == 5.0
     assert ind["target_2r"] == 120.0      # entry + 2*risk
     assert ind["rr_2r"] == 2.0
-    # next HTF pivot above 110 is W R2 = 120 → rr_htf = 10/5 = 2.0
+    # next HTF pivot above 110 is W R2 = 120 -> rr_htf = 10/5 = 2.0
     assert ind["target_htf"] == 120.0 and ind["target_htf_label"] == "W R2"
     assert ind["rr_htf"] == 2.0
 
 
-def test_compute_indicative_short_tight_risk():
-    setup = MTZSetup(symbol="X", direction="SHORT", zone_low=90.0, zone_high=110.0,
-                     members=[("D", "R1"), ("W", "R1")], tf_count=2, tags=[])
-    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=5.0)
-    assert ind["entry"] == 90.0           # first-contact edge: bottom of resistance
+def test_compute_indicative_short_anchors_entry_to_nearest_member():
+    # member levels 90 & 100; price 91 -> entry anchored to 90 (the resistance tested),
+    # not the cluster's far edge.
+    setup = MTZSetup(symbol="X", direction="SHORT", zone_low=88.0, zone_high=102.0,
+                     members=[("D", "P"), ("W", "R1")], member_levels=[90.0, 100.0],
+                     tf_count=2, tags=[])
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=5.0, current_price=91.0)
+    assert ind["entry"] == 90.0
     assert ind["stop"] == 95.0            # entry + risk
     assert ind["target_2r"] == 80.0       # entry - 2*risk
     # next HTF pivot below 90 is W S2 = 80
@@ -76,6 +81,6 @@ def test_compute_indicative_short_tight_risk():
 
 def test_compute_indicative_zero_risk():
     setup = MTZSetup(symbol="X", direction="LONG", zone_low=100.0, zone_high=100.0,
-                     members=[("D", "S1"), ("W", "S1")], tf_count=2, tags=[])
-    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=0.0)
+                     members=[("D", "S1")], member_levels=[100.0], tf_count=2, tags=[])
+    ind = compute_indicative(setup, htf_pivot_set=_pivots(), risk=0.0, current_price=100.0)
     assert ind["risk"] == 0.0 and ind["rr_2r"] == 0.0 and ind["rr_htf"] is None

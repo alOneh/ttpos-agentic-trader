@@ -85,21 +85,25 @@ def next_target(
     return best.value, f"{pivot_set.timeframe} {best.tag}"
 
 
-def compute_indicative(setup: MTZSetup, *, htf_pivot_set: PivotSet, risk: float) -> dict:
+def compute_indicative(
+    setup: MTZSetup, *, htf_pivot_set: PivotSet, risk: float, current_price: float
+) -> dict:
     """Tight-risk indicative levels with two targets (Scanner v2 §5).
 
-    Entry at the FIRST-CONTACT edge of the zone (where price reaches the level and
-    reacts), stop one `risk` beyond it (ATR-based, independent of zone width):
-      LONG  (support):    price falls onto the zone TOP  → entry=zone_high, stop=entry - risk
-      SHORT (resistance): price rises onto the zone BOTTOM → entry=zone_low,  stop=entry + risk
+    Entry is anchored to the touched member pivot NEAREST the current price (the level
+    price is actually reacting at) — not the edge of the merged cluster, which can be
+    far from the action on wide multi-pivot confluences. Stop one `risk` beyond, on the
+    invalidation side (ATR-based, independent of zone width):
+      LONG  (support):    stop = entry - risk
+      SHORT (resistance): stop = entry + risk
     Targets: (A) next higher-TF pivot beyond entry; (B) 2R = entry ± 2·risk.
     """
+    anchors = setup.member_levels or [setup.zone_low, setup.zone_high]
+    entry = min(anchors, key=lambda lv: abs(lv - current_price))
     if setup.direction == "LONG":
-        entry = setup.zone_high
         stop = entry - risk
         target_2r = entry + 2 * risk
     else:
-        entry = setup.zone_low
         stop = entry + risk
         target_2r = entry - 2 * risk
     tgt = next_target(htf_pivot_set, direction=setup.direction, beyond_price=entry)

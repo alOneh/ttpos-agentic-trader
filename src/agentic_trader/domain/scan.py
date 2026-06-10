@@ -50,6 +50,7 @@ class MTZSetup(BaseModel):
     zone_low: float
     zone_high: float
     members: list[tuple[TF, str]]  # [(tf, tag), …]
+    member_levels: list[float] = []  # representative price of each touched member (entry anchoring)
     tf_count: int
     tags: list[str] = []
 

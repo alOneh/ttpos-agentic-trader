@@ -93,11 +93,12 @@ def build_alerts(
     cpr_info = snapshot.cpr_widths.get("D")
     cpr_class = cpr_info.class_stat if cpr_info is not None else "moderate"
     risk = risk_atr_mult * snapshot.atr_m5
+    current_price = snapshot.m5_bars[-1].close if snapshot.m5_bars else 0.0
     alerts: list[ScanAlert] = []
     for setup in setups:
         htf = _highest_tf(setup)
         indicative = compute_indicative(
-            setup, htf_pivot_set=snapshot.pivots[htf], risk=risk,
+            setup, htf_pivot_set=snapshot.pivots[htf], risk=risk, current_price=current_price,
         )
         reaction = detect_reaction(snapshot.m5_bars, setup.direction)
         score = score_setup(
