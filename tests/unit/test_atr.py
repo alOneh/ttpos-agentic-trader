@@ -22,16 +22,20 @@ def test_atr_raises_on_insufficient_bars():
 
 
 def test_dilation_for_intraday_uses_base():
-    # base = 0.15 * 20 = 3.0; cap = 0.5 * 20 = 10.0; for D → just base
-    assert dilation_for(pivot_tf="D", atr_pivot_tf=20.0, atr_d=20.0) == 3.0
-    assert dilation_for(pivot_tf="4H", atr_pivot_tf=10.0, atr_d=20.0) == 1.5
+    # default mult 0.07: base = 0.07 * 20 = 1.4; for D → just base
+    assert round(dilation_for(pivot_tf="D", atr_pivot_tf=20.0, atr_d=20.0), 4) == 1.4
+    assert round(dilation_for(pivot_tf="4H", atr_pivot_tf=10.0, atr_d=20.0), 4) == 0.7
 
 
 def test_dilation_for_weekly_capped_when_large():
-    # base = 0.15 * 100 = 15.0; cap = 0.5 * 20 = 10.0 → returns cap
-    assert dilation_for(pivot_tf="W", atr_pivot_tf=100.0, atr_d=20.0) == 10.0
+    # base = 0.07 * 200 = 14.0; cap = 0.5 * 20 = 10.0 → returns cap
+    assert dilation_for(pivot_tf="W", atr_pivot_tf=200.0, atr_d=20.0) == 10.0
 
 
 def test_dilation_for_weekly_uses_base_when_small():
-    # base = 0.15 * 30 = 4.5; cap = 0.5 * 20 = 10.0 → base
-    assert dilation_for(pivot_tf="W", atr_pivot_tf=30.0, atr_d=20.0) == 4.5
+    # base = 0.07 * 30 = 2.1; cap = 0.5 * 20 = 10.0 → base
+    assert round(dilation_for(pivot_tf="W", atr_pivot_tf=30.0, atr_d=20.0), 4) == 2.1
+
+
+def test_dilation_for_custom_mult():
+    assert dilation_for(pivot_tf="D", atr_pivot_tf=20.0, atr_d=20.0, mult=0.15) == 3.0

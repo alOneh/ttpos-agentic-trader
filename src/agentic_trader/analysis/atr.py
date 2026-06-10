@@ -30,7 +30,7 @@ def dilation_for(
     pivot_tf: TF,
     atr_pivot_tf: float,
     atr_d: float,
-    mult: float = 0.15,
+    mult: float = 0.07,
     cap_d_mult: float = 0.50,
 ) -> float:
     """Buffer applied symmetrically to a pivot value.

@@ -62,3 +62,50 @@ CREATE TABLE IF NOT EXISTS cycle_health (
     signals_notified INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_cycle_health_time ON cycle_health(cycle_time DESC);
+
+CREATE TABLE IF NOT EXISTS touches (
+    symbol TEXT NOT NULL,
+    timeframe TEXT NOT NULL,          -- "D","W","M"
+    zone_kind TEXT NOT NULL,          -- "level" | "bracket"
+    tag TEXT NOT NULL,                -- "S1","R2","PDL-S1",…
+    zone_low REAL NOT NULL,
+    zone_high REAL NOT NULL,
+    side TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    bar_time INTEGER NOT NULL,
+    seen_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    PRIMARY KEY (symbol, timeframe, tag, bar_time)
+);
+CREATE INDEX IF NOT EXISTS idx_touches_active ON touches(symbol, expires_at);
+
+CREATE TABLE IF NOT EXISTS scan_alerts (
+    id TEXT PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    tf_count INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    payload_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_scan_alerts_time ON scan_alerts(created_at DESC);
+
+-- One row per alert id (latest notification wins, by design — dedup is id-based;
+-- the full setup audit lives in scan_alerts.payload_json). Suppressed alerts are
+-- not recorded here (logged at debug instead) to avoid overwriting a prior 'sent'.
+CREATE TABLE IF NOT EXISTS scan_notif_log (
+    alert_id TEXT PRIMARY KEY,
+    sent_at INTEGER NOT NULL,
+    status TEXT NOT NULL,             -- "sent" | "failed"
+    error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_scan_notif_sent_at ON scan_notif_log(sent_at, status);
+
+-- Currently-confluent MTZ regions per symbol (episode dedup: one alert per episode;
+-- an id absent from the latest scan is removed → re-arms when confluence returns).
+CREATE TABLE IF NOT EXISTS scan_active_episodes (
+    alert_id TEXT PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    last_seen INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_scan_episodes_symbol ON scan_active_episodes(symbol);

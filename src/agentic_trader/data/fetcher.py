@@ -41,6 +41,27 @@ class TVFetcher:
     async def fetch_m5(self, symbol: str, *, n_bars: int = 50) -> OHLCVResult:
         return await self._fetch(symbol=symbol, timeframe="5", n_bars=n_bars, client=self._client)
 
+    async def fetch_bars(self, symbol: str, tv_code: str, *, n_bars: int = 50) -> OHLCVResult:
+        """Fetch bars for an arbitrary TradingView timeframe code (e.g. '5','60','720')."""
+        return await self._fetch(symbol=symbol, timeframe=tv_code, n_bars=n_bars, client=self._client)
+
+    async def reconnect(self) -> None:
+        """Re-establish the TradingView WebSocket (close best-effort, then connect)."""
+        if self._client is None:
+            return
+        try:
+            await self._client.close()
+        except Exception:
+            log.warning("tv_close_failed_during_reconnect")
+        await self._client.connect()
+        log.info("tv_reconnected")
+
+    async def ensure_connected(self) -> None:
+        """Reconnect if the persistent WebSocket has dropped (live loop resilience)."""
+        if self._client is not None and not self._client.is_connected:
+            log.warning("tv_connection_down_reconnecting")
+            await self.reconnect()
+
     async def fetch_all_m5(
         self,
         symbols: list[str],

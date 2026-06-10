@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     schedule_offset_seconds: int = 2
     min_rr_tp1: float = 1.5   # drop signals where TP1 R/R < this threshold
     enable_bias_gate: bool = True
+    enable_legacy_signals: bool = False   # S1-S6 cycle archived; set true to re-enable
+    scan_min_score: int = 55
+    scan_dedup_window_min: int = 60
+    scan_touch_lookback_bars: int = 3
+    scan_risk_atr_mult: float = 1.0  # indicative risk = mult × ATR(exec TF)
+    scan_exec_tf: str = "5"          # single execution timeframe (TV code): 5 | 15 | 60 …
+    scan_touch_ttl_min: int = 60     # how long a touch stays active for confluence
+    capture_enabled: bool = False
+    capture_dir: str = "./data/captures"
+    capture_max_age_s: int = 600
 
 
 class StrategyDefaults(BaseModel):
@@ -30,7 +40,7 @@ class StrategyDefaults(BaseModel):
 
     modes: list[str] = ["intraday", "swing"]
     strategies: list[str] = ["S1", "S2", "S3", "S4", "S5", "S6"]
-    atr_dilation_mult: float = 0.15
+    atr_dilation_mult: float = 0.07
     atr_dilation_cap_d_mult: float = 0.50
     confluence_threshold_atr_d: float = 0.30
     narrow_cpr_threshold: float = 0.50

@@ -1,17 +1,36 @@
 # Agentic Trader
 
-Multi-timeframe pivot scanner that detects trading setups on M5 and notifies via Telegram. See `docs/superpowers/specs/2026-05-05-agentic-trader-design.md` for the full design.
+Multi-timeframe **MTZ confluence scanner**: every cadence (M5↔Daily, H1↔Weekly,
+12H↔Monthly) it detects when price touches a pivot zone, finds cross-timeframe
+confluences (MTZ), scores them with the TrendX/Pivot-Boss workbook model, and
+notifies Telegram. See `docs/superpowers/specs/2026-06-03-mtz-scanner-design.md`.
 
-## Status
+## Status — MTZ scanner (current product)
 
-**Plan 1 (Foundation + Data layer) — implemented.**
-**Plan 2 (Strategies S1-S6) — implemented.**
-**Plan 3 (Live MVP + Telegram) — implemented.**
-**Plan 4 (Backtest V2) — implemented.**
-**Plan 5 (Scalping mode / 4H trigger) — implemented.**
-**Plan 6 (Signal Quality / TREND_X hardening) — implemented.**
+**Plan 1 (Foundations & archiving) — implemented.** R4/S4 pivots, `domain/scan.py`, scan tables, legacy S1-S6 archived behind `ENABLE_LEGACY_SIGNALS`.
+**Plan 2 (Touch detection) — implemented.** Zones (levels + brackets), touch detection, TouchStore.
+**Plan 3 (MTZ aggregation & scoring) — implemented.** Cross-TF clustering, workbook scoring, indicative RR.
+**Plan 4 (Engine, scheduler & notification) — implemented.** `run_scan`, 3-cadence scheduler, dedup, Telegram alerts.
+**Plan 5 (best-effort 3-TF chart capture) — implemented.** `ChartCapturer` (Null/File), `send_photo`; alerts attach a screenshot when available, else text. Default headless = NullCapturer. Set `CAPTURE_ENABLED=true` + drop `<SYMBOL>_<ts>.png` into `CAPTURE_DIR` (via the TradingView MCP) to attach 3-TF captures.
 
-Plan 7 (Deployment) — pending.
+### Run the scanner
+
+```bash
+cp .env.example .env   # fill TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (and TV_SESSIONID* if you have them)
+python -m agentic_trader.live.main
+```
+
+Runs continuously: scans the watchlist (`config/watchlist.yaml`) on three cadences,
+persists touches/alerts to SQLite, and sends scored MTZ alerts to Telegram. The CPR
+digests still run; the legacy S1-S6 signal engine is archived (set
+`ENABLE_LEGACY_SIGNALS=true` to re-enable it).
+
+---
+
+## Legacy S1-S6 signal engine (archived)
+
+The previous entry/SL/TP signal system is described below and remains in the
+codebase (`strategies/`, `backtest/`, `live/cycle.py`), no longer scheduled by default.
 
 ## Quick start (Plan 1 demo)
 

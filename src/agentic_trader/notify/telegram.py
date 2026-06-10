@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 import httpx
 
 from agentic_trader.observability.logging import get_logger
 
 log = get_logger(__name__)
+
+
+def _read_image(path: str) -> bytes | None:
+    """Read image bytes if the file exists. Sync helper (keeps the file read out of
+    the async function body); the directory is tiny so the blocking cost is negligible."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "rb") as fh:
+            return fh.read()
+    except OSError:
+        return None
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
 DEFAULT_RETRY_DELAY_S = 3.0
@@ -68,6 +81,30 @@ class TelegramNotifier:
             # 4xx (other) — don't retry
             log.error("telegram_send_client_error", status=resp.status_code, body=resp.text[:200])
             return False
+        return False
+
+    async def send_photo(self, *, caption: str, image_path: str) -> bool:
+        """sendPhoto with a caption. Returns False (never raises) if the file is missing
+        or the upload fails — capture is best-effort and must never break a scan.
+
+        Unlike `send()`, this makes a single attempt (no 429/5xx retry): a failed photo
+        simply falls back to the text alert at the call site."""
+        data_bytes = _read_image(image_path)
+        if data_bytes is None:
+            log.warning("telegram_photo_missing_file", path=image_path)
+            return False
+        url = f"{TELEGRAM_API_BASE}/bot{self._token}/sendPhoto"
+        data = {"chat_id": self._chat_id, "caption": caption[:1024]}
+        try:
+            resp = await self._client.post(
+                url, data=data, files={"photo": ("chart.png", data_bytes, "image/png")}
+            )
+        except Exception as e:
+            log.warning("telegram_photo_error", error=str(e))
+            return False
+        if resp.status_code == 200:
+            return True
+        log.warning("telegram_photo_bad_status", status=resp.status_code)
         return False
 
     async def send_batch(self, texts: list[str]) -> list[tuple[str, bool]]:

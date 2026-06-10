@@ -30,11 +30,13 @@ def compute_pivots(
     s2 = p - (pdh - pdl)
     r3 = pdh + 2 * (p - pdl)
     s3 = pdl - 2 * (pdh - p)
+    r4 = r3 + (r2 - r1)
+    s4 = s3 - (s1 - s2)
 
     raw = [
         ("P", p), ("BC", bc), ("TC", tc),
-        ("R1", r1), ("R2", r2), ("R3", r3),
-        ("S1", s1), ("S2", s2), ("S3", s3),
+        ("R1", r1), ("R2", r2), ("R3", r3), ("R4", r4),
+        ("S1", s1), ("S2", s2), ("S3", s3), ("S4", s4),
         ("PDH", pdh), ("PDL", pdl),
     ]
     levels = [

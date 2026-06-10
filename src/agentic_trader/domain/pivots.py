@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-PivotTag = Literal["P", "R1", "R2", "R3", "S1", "S2", "S3", "TC", "BC", "PDH", "PDL"]
+PivotTag = Literal["P", "R1", "R2", "R3", "R4", "S1", "S2", "S3", "S4", "TC", "BC", "PDH", "PDL"]
 TF = Literal["4H", "D", "W", "M"]
 
 

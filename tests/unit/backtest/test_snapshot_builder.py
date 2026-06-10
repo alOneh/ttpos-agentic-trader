@@ -90,7 +90,7 @@ def test_build_snapshot_raises_when_no_bars_before_t():
     hist = _history()
     t = datetime.fromtimestamp(1, tz=UTC)  # before the first bar
     import pytest
-    with pytest.raises(ValueError, match="no M5"):
+    with pytest.raises(ValueError, match="no 5 bars"):
         build_snapshot_at(hist, t)
 
 
