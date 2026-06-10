@@ -39,15 +39,29 @@ def render_scan_alert(alert: ScanAlert, *, pricescale: float | None = None) -> s
     if s.tags:
         lines.append(f"🏷  {', '.join(s.tags)}")
     lines.append("─────────────")
-    lines.append(f"📈 Bias : {alert.bias}   |   🪟 CPR : {alert.cpr_class}")
+    lines.append(f"📈 Tendance TrendX : {alert.bias} ({_trend_flag(s.direction, alert.bias)})")
+    lines.append(f"🪟 CPR : {alert.cpr_class}")
     if ind:
-        lines.append(f"📊 Entry {_fmt(ind['entry'], d)} · Stop {_fmt(ind['stop'], d)}")
+        lines.append("─────────────")
+        lines.append(f"Entry: {_fmt(ind['entry'], d)}")
+        lines.append(f"Stop: {_fmt(ind['stop'], d)}")
+        lines.append(f"TP1: {_fmt(ind['target_2r'], d)} (RR {ind['rr_2r']:.0f})")
         if ind.get("target_htf") is not None:
             lines.append(
-                f"🎯 Cible HTF {_fmt(ind['target_htf'], d)} {ind.get('target_htf_label', '')}"
-                f"  (RR {ind['rr_htf']:.1f})"
+                f"TP2: {_fmt(ind['target_htf'], d)} {ind.get('target_htf_label', '')}"
+                f" (RR {ind['rr_htf']:.1f})"
             )
-        lines.append(f"🎯 Cible 2R {_fmt(ind['target_2r'], d)}")
     bd = " · ".join(f"{k} {v}" for k, v in alert.score.breakdown.items())
     lines.append(f"🧮 {bd} = {alert.score.total}")
     return "\n".join(lines)
+
+
+def _trend_flag(direction: str, bias: str) -> str:
+    """How the setup direction relates to the TrendX stack bias."""
+    aligned = (direction == "LONG" and bias in ("strong_buy", "buy")) or \
+              (direction == "SHORT" and bias in ("strong_sell", "sell"))
+    if aligned:
+        return "✅ dans le sens"
+    if bias == "neutral":
+        return "• neutre"
+    return "⚠️ contre-tendance"

@@ -25,9 +25,12 @@ def test_render_contains_core_fields():
     assert "LONG" in text
     assert "85" in text and "excellent" in text
     assert "D PDL-S1" in text and "W S1" in text and "M P" in text
-    assert "7.5" in text  # rr_htf
-    assert "2R" in text   # dual target
+    assert "Entry: 2410.00" in text and "Stop: 2408.00" in text
+    assert "TP1: 2414.00 (RR 2)" in text          # 2R target
+    assert "TP2: 2425.00 W R1 (RR 7.5)" in text    # HTF target
     assert "strong_buy" in text
+    # LONG + strong_buy → aligned with trend
+    assert "dans le sens" in text
     # created_at 14:35 UTC → 16:35 Europe/Paris (CEST)
     assert "16:35 (Paris)" in text
     assert "narrow" in text
@@ -37,6 +40,15 @@ def test_render_marks_short_and_tags():
     text = render_scan_alert(_alert(direction="SHORT", tags=["bracket_reversal"]), pricescale=100)
     assert "SHORT" in text
     assert "bracket_reversal" in text
+
+
+def test_render_flags_counter_trend():
+    # LONG setup but strong_sell stack bias → counter-trend, made explicit
+    a = _alert(direction="LONG")
+    a = a.model_copy(update={"bias": "strong_sell"})
+    text = render_scan_alert(a, pricescale=100)
+    assert "LONG" in text
+    assert "contre-tendance" in text
 
 
 def test_render_pricescale_decimals():
